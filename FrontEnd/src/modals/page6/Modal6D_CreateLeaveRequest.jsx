@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import AppleModal from '../../components/motion/AppleModal';
+import { useAuth } from '../../context/AuthContext';
 import { 
   CalendarDays, 
   Clock, 
@@ -14,6 +15,10 @@ import {
 import confetti from 'canvas-confetti';
 
 export default function Modal6D_CreateLeaveRequest({ isOpen, onClose }) {
+  const { currentRole } = useAuth();
+  const isLineManager = currentRole?.key === 'LINE_MANAGER';
+  const isHrd = currentRole?.key === 'HR_DIRECTOR';
+
   const [leaveType, setLeaveType] = useState('annual');
   const [startDate, setStartDate] = useState('2026-09-18');
   const [endDate, setEndDate] = useState('2026-09-19');
@@ -199,8 +204,12 @@ export default function Modal6D_CreateLeaveRequest({ isOpen, onClose }) {
                 <UserCheck className="w-4 h-4 text-blue-600 shrink-0" />
                 <span>
                   Người phê duyệt tiếp nhận: <strong>
-                    {leaveType === 'unpaid'
-                      ? 'Lê Vũ Ngọc Duy (CEO) & Trần Mai Hương (HRD)'
+                    {isLineManager
+                      ? 'Lê Vũ Ngọc Duy (Tổng Giám Đốc / CEO trực tiếp phê duyệt)'
+                      : isHrd
+                      ? 'Lê Vũ Ngọc Duy (Tổng Giám Đốc / CEO trực tiếp phê duyệt)'
+                      : leaveType === 'unpaid'
+                      ? 'Lê Vũ Ngọc Duy (CEO) và Trần Mai Hương (HRD)'
                       : leaveType === 'medical'
                       ? 'Trần Mai Hương (HRD thẩm định C65)'
                       : leaveType === 'annual' && (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24) >= 3
@@ -210,7 +219,9 @@ export default function Modal6D_CreateLeaveRequest({ isOpen, onClose }) {
                 </span>
               </div>
               <span className="text-[11px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs">
-                {leaveType === 'unpaid'
+                {isLineManager || isHrd
+                  ? 'Trình Tổng Giám Đốc phê duyệt'
+                  : leaveType === 'unpaid'
                   ? 'Phê duyệt cấp cao (Nghỉ không lương)'
                   : leaveType === 'medical'
                   ? 'Thẩm định hồ sơ BHXH'

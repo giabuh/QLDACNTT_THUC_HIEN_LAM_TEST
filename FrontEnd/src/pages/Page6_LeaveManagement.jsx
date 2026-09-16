@@ -626,24 +626,44 @@ export default function Page6_LeaveManagement() {
   // VIEW 3: CẤP 1 (CEO) - GIÁM SÁT & KIỂM TOÁN LỊCH SỬ ĐÃ DUYỆT (MONTHLY COUNTER AUTO-RESET)
   // ==========================================
   if (currentRole.key === 'CEO') {
-    const ceoSubordinateRequest = {
-      id: 'CEO-APP-1',
-      employeeName: 'Vũ Đình Khang',
-      employeeId: 'NV-1002',
-      employeeRole: 'Trưởng Phòng Kỹ Thuật Phần Mềm',
-      employeeDept: 'Phòng Phát triển Phần mềm',
-      leaveType: 'Nghỉ phép năm thường niên',
-      type: 'Nghỉ phép năm (02 ngày)',
-      range: '28/09/2026 - 29/09/2026 (02 ngày)',
-      daysCount: 2,
-      reason: 'Tham gia hội thảo Quốc tế AI & Cloud Engineer Singapore Summit 2026',
-      handoverPerson: 'Phạm Minh Quân (Senior Kỹ sư Phần mềm)',
-      approvalType: 'ceo_direct',
-      attachedFile: 'Thu_moi_hoi_nghi_AI_Singapore_2026.pdf',
-      status: 'pending',
-      submittedAt: '12/09/2026 09:15',
-      note: 'Đã phân chia task Sprint 24 và ủy quyền điều hành trực tiếp cho Phạm Minh Quân.'
-    };
+    const ceoSubordinateRequests = [
+      {
+        id: 'CEO-APP-1',
+        employeeName: 'Vũ Đình Khang',
+        employeeId: 'NV-1000',
+        employeeRole: 'Trưởng Phòng Kỹ Thuật Phần Mềm',
+        employeeDept: 'Phòng Phát triển Phần mềm',
+        leaveType: 'Nghỉ phép năm thường niên',
+        type: 'Nghỉ phép năm (02 ngày)',
+        range: '28/09/2026 - 29/09/2026 (02 ngày)',
+        daysCount: 2,
+        reason: 'Tham gia hội thảo Quốc tế AI & Cloud Engineer Singapore Summit 2026',
+        handoverPerson: 'Phạm Minh Quân (Senior Kỹ sư Phần mềm)',
+        approvalType: 'ceo_direct',
+        attachedFile: 'Thu_moi_hoi_nghi_AI_Singapore_2026.pdf',
+        status: 'pending',
+        submittedAt: '12/09/2026 09:15',
+        note: 'Đã phân chia task Sprint 38 và ủy quyền điều hành kỹ thuật trực tiếp cho Phạm Minh Quân.'
+      },
+      {
+        id: 'CEO-APP-2',
+        employeeName: 'Trần Mai Hương',
+        employeeId: 'NV-0002',
+        employeeRole: 'Giám Đốc Nhân Sự (HRD)',
+        employeeDept: 'Khối Nhân sự và Vận hành',
+        leaveType: 'Nghỉ phép năm thường niên',
+        type: 'Nghỉ phép năm (02 ngày)',
+        range: '25/09/2026 - 26/09/2026 (02 ngày)',
+        daysCount: 2,
+        reason: 'Nghỉ phép cá nhân tái tạo năng lượng Quý III/2026',
+        handoverPerson: 'Đặng Thu Thảo (Phó Phòng Nhân sự / C&B Lead)',
+        approvalType: 'ceo_direct',
+        attachedFile: 'Ke_hoach_ban_giao_cong_tac_nhan_su_Q3.pdf',
+        status: 'pending',
+        submittedAt: '14/09/2026 14:30',
+        note: 'Đã hoàn tất chốt kỳ lương Tháng 9 và bàn giao trực ban tuyển dụng - vận hành cho Đặng Thu Thảo.'
+      }
+    ];
 
     const historicalApprovedLeaves = [
       {
@@ -834,59 +854,81 @@ export default function Page6_LeaveManagement() {
           </div>
         </div>
 
-        {/* Special CEO Approval Card: Direct subordinate */}
-        <div 
-          onClick={() => openModal('modal6E', ceoSubordinateRequest)}
-          className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 hover:border-amber-300 rounded-2xl p-5 shadow-2xs cursor-pointer transition-all"
-        >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <Avatar name="Vũ Đình Khang" id="NV-1002" size="lg" shape="rounded" />
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">Cần CEO duyệt</span>
-                  <h4 className="font-bold text-slate-900 text-sm">Vũ Đình Khang • Trưởng Phòng Kỹ Thuật Phần Mềm</h4>
-                </div>
-                <p className="text-xs text-slate-700 mt-1">
-                  <strong>Loại nghỉ:</strong> Nghỉ phép năm (02 ngày: 28/09 - 29/09/2026) • <strong>Lý do:</strong> Tham gia hội thảo Quốc tế AI & Cloud Engineer Singapore
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Đã bàn giao điều hành cho Phạm Minh Quân (Senior Kỹ sư Phần mềm). Đính kèm thư mời hội thảo.
-                </p>
-              </div>
-            </div>
+        {/* Special CEO Approval Cards: Direct subordinates (Trưởng phòng & Giám Đốc Nhân Sự) */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-600" />
+              <span>Đơn nghỉ phép cấp Quản lý trực thuộc cần Tổng Giám Đốc phê duyệt ({ceoSubordinateRequests.length})</span>
+            </h3>
+            <span className="text-[11px] text-slate-500 font-medium italic">
+              * Theo ma trận thẩm quyền, Trưởng phòng và Giám đốc Khối do CEO trực tiếp phê duyệt
+            </span>
+          </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openModal('modal6E', ceoSubordinateRequest);
-                }}
-                className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+          <div className="grid grid-cols-1 gap-3">
+            {ceoSubordinateRequests.map((req) => (
+              <div 
+                key={req.id}
+                onClick={() => openModal('modal6E', req)}
+                className="bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-white border border-amber-200 hover:border-amber-300 rounded-2xl p-5 shadow-2xs cursor-pointer transition-all"
               >
-                <Eye className="w-3.5 h-3.5 text-blue-600" />
-                <span>Xem chi tiết và đính kèm</span>
-              </button>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <Avatar name={req.employeeName} id={req.employeeId} size="lg" shape="rounded" />
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                          Cần CEO duyệt
+                        </span>
+                        <h4 className="font-bold text-slate-900 text-sm">
+                          {req.employeeName} • {req.employeeRole}
+                        </h4>
+                        <span className="text-xs text-slate-400 font-mono">({req.employeeId})</span>
+                      </div>
+                      <p className="text-xs text-slate-700 mt-1">
+                        <strong>Loại nghỉ:</strong> {req.type} ({req.range}) • <strong>Lý do:</strong> {req.reason}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Bàn giao cho: <strong>{req.handoverPerson}</strong>. {req.note}
+                      </p>
+                    </div>
+                  </div>
 
-              {approvedList.includes('CEO-APP-1') ? (
-                <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5">
-                  <Check className="w-4 h-4" /> Tổng Giám Đốc Đã Phê Duyệt
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleApprove('CEO-APP-1', 'Vũ Đình Khang');
-                  }}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Phê duyệt đơn Trưởng phòng</span>
-                </button>
-              )}
-            </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openModal('modal6E', req);
+                      }}
+                      className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Xem chi tiết</span>
+                    </button>
+
+                    {approvedList.includes(req.id) ? (
+                      <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5">
+                        <Check className="w-4 h-4" /> Đã Phê Duyệt
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleApprove(req.id, req.employeeName);
+                        }}
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>Duyệt đơn</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
