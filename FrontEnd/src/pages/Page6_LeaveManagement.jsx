@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/common/Avatar';
+import leaveService from '../services/leaveService';
 import { 
   CalendarDays, 
   CheckCircle2, 
@@ -29,13 +30,39 @@ export default function Page6_LeaveManagement() {
   const { currentRole } = useAuth();
   const [activeTab, setActiveTab] = useState('pending');
   const [approvedList, setApprovedList] = useState([]);
+  const [apiLeaves, setApiLeaves] = useState([]);
+
+  // Load real leave requests from backend PostgreSQL
+  const loadLeaves = async () => {
+    try {
+      const res = await leaveService.getAll();
+      if (res && res.success && Array.isArray(res.data)) {
+        setApiLeaves(res.data);
+      }
+    } catch (e) {
+      console.warn('Backend leaves API notice, fallback to local:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadLeaves();
+    const handleUpdate = () => loadLeaves();
+    window.addEventListener('nexus:leave-updated', handleUpdate);
+    return () => window.removeEventListener('nexus:leave-updated', handleUpdate);
+  }, [currentRole.key]);
 
   // Calculate current month string for auto-reset monthly log
   const currentMonthYear = 'Tháng 09/2026';
   const monthlyResetCount = 48; // Sẽ tự động reset về 0 vào đầu mỗi tháng mới
 
-  const handleApprove = (id, name) => {
+  const handleApprove = async (id, name) => {
     setApprovedList((prev) => [...prev, id]);
+    try {
+      await leaveService.approve(id, 'Đồng ý phê duyệt đơn phép');
+      loadLeaves();
+    } catch (e) {
+      console.warn('Backend approve notice:', e);
+    }
     try {
       confetti({
         particleCount: 50,
@@ -49,7 +76,31 @@ export default function Page6_LeaveManagement() {
   // VIEW 1: CẤP 3 - NHÂN VIÊN (ESS)
   // ==========================================
   if (currentRole.key === 'EMPLOYEE') {
-    const myLeaveRequests = [
+    const rawApiLeaves = apiLeaves.map(l => ({
+      id: l.id,
+      employeeName: l.full_name || 'Phạm Minh Quân',
+      employeeId: l.employee_id,
+      employeeRole: l.job_title || 'Kỹ sư Phần mềm (Frontend)',
+      employeeDept: l.department_name || 'Phòng Phát triển Phần mềm',
+      type: l.leave_type_name || 'Nghỉ việc riêng hưởng nguyên lương',
+      leaveType: l.leave_type_name || 'Nghỉ việc riêng hưởng nguyên lương',
+      range: `${new Date(l.start_date).toLocaleDateString('vi-VN')} - ${new Date(l.end_date).toLocaleDateString('vi-VN')} (${l.total_days} ngày)`,
+      daysCount: Number(l.total_days),
+      shiftType: 'Cả ngày (08:00 - 17:30)',
+      reason: l.reason,
+      handoverPerson: l.handover_to || 'Đồng nghiệp',
+      handoverNote: 'Đã bàn giao theo dõi ticket Jira',
+      submittedAt: new Date(l.submitted_at).toLocaleDateString('vi-VN'),
+      approver: l.manager_approver_name || 'Vũ Đình Khang (Trưởng Phòng Kỹ Thuật)',
+      status: approvedList.includes(l.id) || l.stage === 'DA_PHE_DUYET' ? 'approved' : l.stage === 'TU_CHOI' ? 'rejected' : 'pending',
+      statusLabel: approvedList.includes(l.id) || l.stage === 'DA_PHE_DUYET' ? 'Đã duyệt' : l.stage === 'CHO_TRUONG_PHONG_DUYET' ? 'Đang chờ Trưởng phòng duyệt' : l.stage === 'CHO_HR_PHE_CHUAN' ? 'Chờ HR phê chuẩn' : 'Từ chối',
+      statusColor: approvedList.includes(l.id) || l.stage === 'DA_PHE_DUYET' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200',
+      approvalType: 'two_level',
+      attachedFile: l.attachment_name || null,
+      remainingQuota: 9,
+    }));
+
+    const mockMyLeaveRequests = [
       {
         id: 'LP-2026-104',
         employeeName: 'Phạm Minh Quân',
@@ -121,6 +172,11 @@ export default function Page6_LeaveManagement() {
         attachedFile: 'Giay_chung_nhan_y_te_C65.pdf',
         remainingQuota: 9,
       },
+    ];
+
+    const myLeaveRequests = [
+      ...rawApiLeaves,
+      ...mockMyLeaveRequests.filter(m => !rawApiLeaves.some(a => a.id === m.id))
     ];
 
     return (
@@ -255,7 +311,39 @@ export default function Page6_LeaveManagement() {
   // VIEW 2: CẤP 2B - TRƯỞNG PHÒNG (LINE MANAGER - NGƯỜI DUYỆT CHỦ CHỐT)
   // ==========================================
   if (currentRole.key === 'LINE_MANAGER') {
-    const deptPendingRequests = [
+    const apiDeptPending = apiLeaves
+      .filter(l => l.stage === 'CHO_TRUONG_PHONG_DUYET' && !approvedList.includes(l.id))
+      .map(l => ({
+        id: l.id,
+        empId: l.employee_id,
+        empName: l.full_name || 'Nhân viên',
+        employeeName: l.full_name || 'Nhân viên',
+        employeeId: l.employee_id,
+        role: l.job_title || 'Kỹ sư Phần mềm',
+        employeeRole: l.job_title || 'Kỹ sư Phần mềm',
+        employeeDept: l.department_name || 'Phòng Phát triển Phần mềm',
+        avatar: l.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+        employeeAvatar: l.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+        type: l.leave_type_name || 'Nghỉ phép',
+        leaveType: l.leave_type_name || 'Nghỉ phép',
+        range: `${new Date(l.start_date).toLocaleDateString('vi-VN')} - ${new Date(l.end_date).toLocaleDateString('vi-VN')} (${l.total_days} ngày)`,
+        daysCount: Number(l.total_days),
+        shiftType: 'Cả ngày (08:00 - 17:30)',
+        reason: l.reason,
+        handoverPerson: l.handover_to || 'Đồng nghiệp cùng Squad',
+        handoverNote: 'Đã hoàn thành bàn giao task trước khi gửi đơn',
+        submittedAt: new Date(l.submitted_at).toLocaleDateString('vi-VN'),
+        remainingQuota: 9,
+        conflictCheck: 'Đã đối soát lịch trực và tiến độ sprint',
+        conflictWarning: 'Không trùng lịch Sprint Demo.',
+        urgency: 'Bình thường',
+        approvalType: 'two_level',
+        attachedFile: l.attachment_name || null,
+        approver: 'Vũ Đình Khang (Trưởng Phòng Kỹ Thuật)',
+        status: 'pending',
+      }));
+
+    const mockDeptPendingRequests = [
       {
         id: 'LP-2026-104',
         empId: 'NV-0842',
@@ -343,6 +431,11 @@ export default function Page6_LeaveManagement() {
         approver: 'Lê Vũ Ngọc Duy (Tổng Giám Đốc)',
         status: 'pending',
       },
+    ];
+
+    const deptPendingRequests = [
+      ...apiDeptPending,
+      ...mockDeptPendingRequests.filter(m => !apiDeptPending.some(a => a.id === m.id) && !approvedList.includes(m.id))
     ];
 
     return (

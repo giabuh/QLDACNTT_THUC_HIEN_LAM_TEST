@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/common/Avatar';
 import { mockEmployees } from '../data/mockEmployees';
+import employeeService from '../services/employeeService';
 import { initialSquads } from '../data/mockProjectsTasks';
 import confetti from 'canvas-confetti';
 import { 
@@ -39,6 +40,8 @@ import {
 export default function Page4_Directory() {
   const { openModal } = useModal();
   const { currentRole } = useAuth();
+  const [employees, setEmployees] = useState(mockEmployees);
+  const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState(
     currentRole.key === 'LINE_MANAGER' || currentRole.key === 'EMPLOYEE' ? 'Phần mềm' : 'all'
@@ -60,6 +63,70 @@ export default function Page4_Directory() {
   const [activeChatSquad, setActiveChatSquad] = useState(null);
   const [chatInputText, setChatInputText] = useState('');
 
+  // Fetch employees from API on mount
+  useEffect(() => {
+    let isMounted = true;
+    const loadEmployees = async () => {
+      try {
+        setIsLoadingEmployees(true);
+        const res = await employeeService.getAll();
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          const normalized = res.data.map(emp => ({
+            id: emp.id,
+            name: emp.full_name || emp.name,
+            role: emp.job_title || emp.role || 'Nhân viên',
+            department: emp.department_name || emp.department || 'Kỹ thuật Phần mềm',
+            email: emp.work_email || emp.email,
+            phone: emp.phone_number || emp.phone || '0900 000 000',
+            avatar: emp.avatar_url || emp.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+            contractSalary: Number(emp.base_salary || emp.contractSalary || 20000000),
+            status: (emp.status === 'DANG_LAM_VIEC' || emp.status === 'active') ? 'active' : emp.status,
+            type: emp.contract_type === 'CHINH_THUC' ? 'Toàn thời gian' : 'Thử việc',
+            joinDate: emp.joined_date ? new Date(emp.joined_date).toLocaleDateString('vi-VN') : (emp.joinDate || '01/01/2026'),
+            leaveBalance: Number(emp.leave_balance ?? emp.leaveBalance ?? 12),
+            cccd: emp.citizen_id || emp.cccd || '079000000000',
+            bankAccount: emp.bank_account || emp.bankAccount || '123456789',
+            bankName: emp.bank_name || emp.bankName || 'Vietcombank',
+            kpiScore: Number(emp.kpi_score ?? emp.kpiScore ?? 95.0),
+            attendanceRate: Number(emp.attendance_rate ?? emp.attendanceRate ?? 98.0),
+          }));
+          if (isMounted) setEmployees(normalized);
+        }
+      } catch (err) {
+        console.warn('API employees fallback to local seed data:', err);
+      } finally {
+        if (isMounted) setIsLoadingEmployees(false);
+      }
+    };
+
+    loadEmployees();
+
+    const handleEmployeeAdded = (e) => {
+      if (e?.detail) {
+        setEmployees(prev => [e.detail, ...prev.filter(x => x.id !== e.detail.id)]);
+        setDepartmentFilter('all');
+        setStatusFilter('all');
+        setSearchTerm('');
+      } else {
+        loadEmployees();
+      }
+    };
+
+    const handleEmployeeDeleted = (e) => {
+      if (e?.detail?.id) {
+        setEmployees(prev => prev.filter(x => x.id !== e.detail.id));
+      }
+    };
+
+    window.addEventListener('nexus:employee-added', handleEmployeeAdded);
+    window.addEventListener('nexus:employee-deleted', handleEmployeeDeleted);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('nexus:employee-added', handleEmployeeAdded);
+      window.removeEventListener('nexus:employee-deleted', handleEmployeeDeleted);
+    };
+  }, []);
+
   // New Squad Form State
   const [newSquad, setNewSquad] = useState({
     name: '',
@@ -79,26 +146,26 @@ export default function Page4_Directory() {
     : 'Đồng Nghiệp Cùng Nhóm';
 
   const pageSubtitle = canManagePersonnel
-    ? 'Toàn bộ 348 hồ sơ nhân sự, hợp đồng lao động và phân bổ phòng ban'
+    ? `Toàn bộ ${employees.length} hồ sơ nhân sự, hợp đồng lao động và phân bổ phòng ban`
     : isManager
     ? 'Danh sách nhân sự thuộc Phòng Kỹ Thuật Phần Mềm dưới quyền quản lý của Trưởng phòng Vũ Đình Khang'
     : 'Danh sách các đội nhóm dự án và thông tin liên hệ công vụ các đồng nghiệp cùng phòng Kỹ thuật';
 
   // Filter employees
-  const filteredEmployees = mockEmployees.filter((emp) => {
+  const filteredEmployees = employees.filter((emp) => {
     if (isStaff || isManager) {
-      if (!emp.department.includes('Phần mềm') && !emp.department.includes('Kỹ thuật')) {
+      if (emp.department && !emp.department.includes('Phần mềm') && !emp.department.includes('Kỹ thuật')) {
         return false;
       }
     }
 
     const matchesSearch = 
-      emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.role.toLowerCase().includes(searchTerm.toLowerCase());
+      (emp.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.role || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesDept = departmentFilter === 'all' || emp.department.includes(departmentFilter);
+    const matchesDept = departmentFilter === 'all' || (emp.department || '').includes(departmentFilter);
     const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' && emp.status === 'active');
 
     return matchesSearch && matchesDept && matchesStatus;
@@ -147,7 +214,7 @@ export default function Page4_Directory() {
     e.preventDefault();
     if (!newSquad.name.trim()) return;
 
-    const memberObjects = mockEmployees
+    const memberObjects = employees
       .filter((e) => newSquad.selectedMemberIds.includes(e.id))
       .map((e) => ({
         id: e.id,

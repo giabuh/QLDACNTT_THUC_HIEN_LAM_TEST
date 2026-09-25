@@ -3,16 +3,17 @@ import { motion } from 'framer-motion';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/common/Avatar';
+import attendanceService from '../services/attendanceService';
 import { 
   Camera, 
   CheckCircle2, 
   Clock, 
   RefreshCw, 
   CalendarDays, 
-  Check,
-  UserCheck,
-  ShieldCheck,
-  Building
+  Check, 
+  UserCheck, 
+  ShieldCheck, 
+  Building 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -39,9 +40,18 @@ export default function Page5_Attendance() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleManualCapture = () => {
+  const handleManualCapture = async () => {
     setIsScanning(false);
     setHasCaptured(true);
+    try {
+      if (shiftMode === 'checkin') {
+        await attendanceService.checkIn({ method: 'face_id', gpsLat: 10.762622, gpsLng: 106.660172 });
+      } else {
+        await attendanceService.checkOut({ method: 'face_id' });
+      }
+    } catch (err) {
+      console.warn('Attendance API notice:', err.message || err);
+    }
     try {
       confetti({
         particleCount: 45,

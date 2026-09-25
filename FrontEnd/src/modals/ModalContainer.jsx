@@ -15,6 +15,7 @@ import Modal4C_ImportExcel from './page4/Modal4C_ImportExcel';
 import Modal4D_Offboarding from './page4/Modal4D_Offboarding';
 import Modal4E_DepartmentManage from './page4/Modal4E_DepartmentManage';
 import Modal4F_JobTitleManage from './page4/Modal4F_JobTitleManage';
+import Modal4G_ContractPdfPreview from './page4/Modal4G_ContractPdfPreview';
 import Modal5A_KioskGate from './page5/Modal5A_KioskGate';
 import Modal5B_TimesheetMatrix from './page5/Modal5B_TimesheetMatrix';
 import Modal5C_SnapshotLogs from './page5/Modal5C_SnapshotLogs';
@@ -61,6 +62,7 @@ export default function ModalContainer() {
       <Modal4D_Offboarding isOpen={activeModal === 'modal4D'} onClose={closeModal} payload={modalPayload} />
       <Modal4E_DepartmentManage isOpen={activeModal === 'modal4E'} onClose={closeModal} payload={modalPayload} />
       <Modal4F_JobTitleManage isOpen={activeModal === 'modal4F'} onClose={closeModal} payload={modalPayload} />
+      <Modal4G_ContractPdfPreview isOpen={activeModal === 'modal4G'} onClose={closeModal} payload={modalPayload} />
 
       {/* Page 5 Modals */}
       <Modal5A_KioskGate isOpen={activeModal === 'modal5A'} onClose={closeModal} payload={modalPayload} />

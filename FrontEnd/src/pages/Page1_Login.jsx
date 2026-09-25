@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth, ROLES } from '../context/AuthContext';
+import authService from '../services/authService';
 import Avatar from '../components/common/Avatar';
 import { 
   BadgeCheck, 
@@ -30,7 +31,7 @@ export default function Page1_Login() {
   const { switchRole } = useAuth();
 
   const [employeeId, setEmployeeId] = useState('NV-1001');
-  const [password, setPassword] = useState('nexus@2026');
+  const [password, setPassword] = useState('Hrd@123456');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,6 +49,7 @@ export default function Page1_Login() {
       name: 'Lê Vũ Ngọc Duy',
       id: 'NV-0001',
       email: 'ceo@fwbnexus.vn',
+      password: 'Ceo@123456',
       icon: Crown,
       badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
       desc: 'Toàn quyền điều hành xem toàn bộ dữ liệu tài chính và nhân sự',
@@ -60,6 +62,7 @@ export default function Page1_Login() {
       name: 'Trần Mai Hương',
       id: 'NV-1001',
       email: 'hrd@fwbnexus.vn',
+      password: 'Hrd@123456',
       icon: Briefcase,
       badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
       desc: 'Toàn quyền vận hành HRMS, quyết toán lương và thẩm duyệt phép',
@@ -72,6 +75,7 @@ export default function Page1_Login() {
       name: 'Vũ Đình Khang',
       id: 'NV-1002',
       email: 'lead@fwbnexus.vn',
+      password: 'Lead@123456',
       icon: Users,
       badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       desc: 'Quản lý phòng ban, duyệt phép đội ngũ và đánh giá hiệu suất',
@@ -84,6 +88,7 @@ export default function Page1_Login() {
       name: 'Phạm Minh Quân',
       id: 'NV-0842',
       email: 'employee@fwbnexus.vn',
+      password: 'Emp@123456',
       icon: User,
       badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
       desc: 'Cổng tự phục vụ ESS: xem lương, FaceID, xin phép cá nhân',
@@ -91,45 +96,60 @@ export default function Page1_Login() {
     },
   ];
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e?.preventDefault();
     if (!employeeId || !password) {
-      setErrorMessage('Vui lòng nhập đầy đủ mã nhân viên và mật khẩu');
+      setErrorMessage('Vui lòng nhập đầy đủ mã nhân viên/email và mật khẩu');
       return;
     }
 
     setIsLoading(true);
     setErrorMessage('');
 
-    setTimeout(() => {
-      setIsLoading(false);
-      // Determine destination based on ID or default to dashboard
-      if (employeeId === 'NV-0842' || employeeId.includes('employee')) {
-        switchRole('EMPLOYEE');
-        navigate('/portal');
-      } else if (employeeId === 'NV-0001' || employeeId.includes('ceo')) {
-        switchRole('CEO');
-        navigate('/dashboard');
-      } else if (employeeId === 'NV-1002' || employeeId.includes('lead')) {
-        switchRole('LINE_MANAGER');
-        navigate('/dashboard');
-      } else {
-        switchRole('HR_DIRECTOR');
-        navigate('/dashboard');
-      }
-    }, 800);
+    // Map to account if available
+    const matchedAccount = testAccounts.find(
+      (a) => a.id === employeeId || a.email.toLowerCase() === employeeId.toLowerCase()
+    );
+
+    const emailToUse = matchedAccount ? matchedAccount.email : (employeeId.includes('@') ? employeeId : `${employeeId.toLowerCase()}@fwbnexus.vn`);
+
+    try {
+      await authService.login(emailToUse, password);
+    } catch (err) {
+      console.warn('API login warning (fallback to demo role):', err);
+    }
+
+    setIsLoading(false);
+    // Determine destination based on ID or default to dashboard
+    if (employeeId === 'NV-0842' || employeeId.includes('employee')) {
+      switchRole('EMPLOYEE');
+      navigate('/portal');
+    } else if (employeeId === 'NV-0001' || employeeId.includes('ceo')) {
+      switchRole('CEO');
+      navigate('/dashboard');
+    } else if (employeeId === 'NV-1002' || employeeId.includes('lead')) {
+      switchRole('LINE_MANAGER');
+      navigate('/dashboard');
+    } else {
+      switchRole('HR_DIRECTOR');
+      navigate('/dashboard');
+    }
   };
 
-  const handleSelectQuickAccount = (acc) => {
+  const handleSelectQuickAccount = async (acc) => {
     setEmployeeId(acc.id);
-    setPassword('nexus@2026');
+    setPassword(acc.password);
     switchRole(acc.roleKey);
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      navigate(acc.targetPath);
-    }, 600);
+    try {
+      await authService.login(acc.email, acc.password);
+    } catch (err) {
+      console.warn('Quick login API notice:', err);
+    }
+
+    setIsLoading(false);
+    navigate(acc.targetPath);
   };
 
   const handleStartFaceId = () => {

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import projectService from '../services/projectService';
 import { initialProjects, initialTasks, departmentMembers } from '../data/mockProjectsTasks';
 import { 
   FolderKanban, 
@@ -72,6 +73,74 @@ export default function Page9_ProjectsTasks() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAssigneeId, setSelectedAssigneeId] = useState(isEmployee ? 'NV-0842' : 'ALL');
   const [viewMode, setViewMode] = useState('kanban'); // 'kanban' | 'table'
+
+  // Fetch real projects and tasks from PostgreSQL via API
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchProjectsAndTasks() {
+      try {
+        const projRes = await projectService.getAll().catch(() => null);
+        if (projRes?.success && Array.isArray(projRes.data) && projRes.data.length > 0 && isMounted) {
+          const apiProjects = projRes.data.map((p) => ({
+            id: p.id,
+            code: p.code,
+            name: p.name,
+            department: p.department_name || 'Phòng Phát triển Phần mềm',
+            manager: p.manager_name || 'Vũ Đình Khang',
+            managerAvatar: p.manager_avatar,
+            startDate: p.start_date ? new Date(p.start_date).toLocaleDateString('vi-VN') : '01/08/2026',
+            endDate: p.end_date ? new Date(p.end_date).toLocaleDateString('vi-VN') : '30/10/2026',
+            progress: p.progress || 0,
+            status: p.status || 'in_progress',
+            priority: p.priority || 'Cao',
+            budgetHours: p.budget_hours || 480,
+            usedHours: p.used_hours || 0,
+            description: p.description || '',
+          }));
+          setProjects(apiProjects);
+
+          // Lấy tasks của project đầu tiên
+          const firstId = projRes.data[0].id;
+          const tasksRes = await projectService.getTasks(firstId).catch(() => null);
+          if (tasksRes?.success && Array.isArray(tasksRes.data) && isMounted) {
+            const apiTasks = tasksRes.data.map((t) => ({
+              id: t.id,
+              projectId: t.project_id,
+              projectName: projRes.data[0].name,
+              title: t.title,
+              description: t.description || 'Hoàn thành theo tiêu chuẩn kỹ thuật sprint.',
+              assigneeId: t.assignee_id || 'NV-0842',
+              assigneeName: t.assignee_name || 'Nhân viên kỹ thuật',
+              assigneeRole: t.assignee_role || 'Kỹ sư Phần mềm',
+              assigneeAvatar: t.assignee_avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+              creator: t.creator_name ? `${t.creator_name} (Trưởng phòng)` : 'Vũ Đình Khang (Trưởng phòng)',
+              deadline: t.deadline ? new Date(t.deadline).toLocaleDateString('vi-VN') : '25/09/2026',
+              priority: t.priority || 'Trung bình',
+              stage: t.stage || 'todo',
+              progress: t.progress || 0,
+              kpiWeight: t.kpi_weight || 20,
+              submissionNote: t.deliverable_note || '',
+              logs: [
+                {
+                  time: new Date(t.created_at || Date.now()).toLocaleDateString('vi-VN') + ' 09:00',
+                  author: t.creator_name || 'Vũ Đình Khang',
+                  note: 'Nhiệm vụ được đồng bộ trực tiếp từ CSDL PostgreSQL.',
+                },
+              ],
+            }));
+            setTasks([
+              ...apiTasks,
+              ...initialTasks.filter((it) => !apiTasks.some((at) => at.id === it.id)),
+            ]);
+          }
+        }
+      } catch (err) {
+        console.warn('Backend projects API notice, fallback to mock:', err);
+      }
+    }
+    fetchProjectsAndTasks();
+    return () => { isMounted = false; };
+  }, [currentRole.key]);
 
   // Modal States
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
@@ -153,6 +222,17 @@ export default function Page9_ProjectsTasks() {
     setProjects([created, ...projects]);
     setIsCreateProjectOpen(false);
     confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+
+    // Gọi API Backend lưu project vào PostgreSQL
+    projectService.createProject({
+      name: newProject.name,
+      code: newProject.code,
+      department_id: 'DEPT-IT',
+      priority: newProject.priority,
+      description: newProject.description,
+      budget_hours: newProject.budgetHours,
+    }).catch((err) => console.warn('Backend create project notice:', err));
+
     setNewProject({
       name: '',
       code: `PRJ-2026-0${projects.length + 2}`,
@@ -202,6 +282,18 @@ export default function Page9_ProjectsTasks() {
     setTasks([createdTask, ...tasks]);
     setIsAssignTaskOpen(false);
     confetti({ particleCount: 60, spread: 70, origin: { y: 0.5 } });
+
+    // Gọi API Backend lưu task vào PostgreSQL
+    projectService.createTask(project.id, {
+      title: newTask.title,
+      description: newTask.description,
+      assignee_id: member.id,
+      deadline: newTask.deadline,
+      priority: newTask.priority,
+      kpi_weight: Number(newTask.kpiWeight) || 20,
+      stage: 'todo',
+    }).catch((err) => console.warn('Backend create task notice:', err));
+
     setNewTask({
       projectId: projects[0]?.id || 'PRJ-NEXUS-V2',
       title: '',
@@ -223,6 +315,12 @@ export default function Page9_ProjectsTasks() {
   const handleSaveUpdateTask = (e) => {
     e.preventDefault();
     if (!selectedTaskForUpdate) return;
+
+    if (selectedTaskForUpdate.stage !== updateStage) {
+      projectService.updateTaskStage(selectedTaskForUpdate.id, updateStage, updateNote).catch((err) => {
+        console.warn('Backend update task stage notice:', err);
+      });
+    }
 
     const updated = tasks.map((t) => {
       if (t.id === selectedTaskForUpdate.id) {
@@ -259,6 +357,11 @@ export default function Page9_ProjectsTasks() {
 
   const handleManagerApprove = (isApproved) => {
     if (!selectedTaskForReview) return;
+
+    const targetStage = isApproved ? 'done' : 'in_progress';
+    projectService.updateTaskStage(selectedTaskForReview.id, targetStage, managerReviewNote).catch((err) => {
+      console.warn('Backend update task stage notice:', err);
+    });
 
     const updated = tasks.map((t) => {
       if (t.id === selectedTaskForReview.id) {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import AppleModal from '../../components/motion/AppleModal';
 import { UserPlus, CheckCircle2, ShieldCheck, Mail, Key, User, Camera, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import employeeService from '../../services/employeeService';
 
 export default function Modal4A_Onboarding({ isOpen, onClose }) {
   const [step, setStep] = useState(2);
@@ -14,18 +15,73 @@ export default function Modal4A_Onboarding({ isOpen, onClose }) {
   const [contractType, setContractType] = useState('Thử việc 02 tháng');
   const [salary, setSalary] = useState('22000000');
   const [assignedRole, setAssignedRole] = useState('employee');
+  const [email, setEmail] = useState('thuy.lt@nexus.vn');
+  const [employeeId] = useState(() => `NV-${Math.floor(2000 + Math.random() * 7999)}`);
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
+
+    const newEmployee = {
+      id: employeeId,
+      name: fullName,
+      role: role,
+      department: department,
+      email: email || `${fullName.toLowerCase().replace(/\s+/g, '.')}@nexus.vn`,
+      phone: '0912 888 999',
+      avatar: gender === 'Nữ'
+        ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+        : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      contractSalary: Number(salary) || 22000000,
+      status: 'active',
+      type: contractType.toLowerCase().includes('thử việc') ? 'Thử việc' : 'Toàn thời gian',
+      joinDate: new Date().toLocaleDateString('vi-VN'),
+      leaveBalance: 12,
+      cccd: cccd,
+      bankAccount: '1029 3847 55',
+      bankName: 'Vietcombank',
+      kpiScore: 100.0,
+      attendanceRate: 100.0,
+    };
+
+    // 1. Try to persist to PostgreSQL backend API
     try {
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+      const deptMap = {
+        'Kỹ thuật Phần mềm': 'DEPT-IT',
+        'Marketing và Truyền thông': 'DEPT-MKT',
+        'Tài chính Kế toán': 'DEPT-ACC',
+        'Nhân sự và Vận hành': 'DEPT-HR',
+      };
+      await employeeService.create({
+        id: employeeId,
+        fullName: fullName,
+        departmentId: deptMap[department] || 'DEPT-IT',
+        jobTitle: role,
+        workEmail: email || `${fullName.toLowerCase().replace(/\s+/g, '.')}@nexus.vn`,
+        phoneNumber: '0912 888 999',
+        citizenId: cccd,
+        dateOfBirth: '1998-04-12',
+        gender: gender === 'Nữ' ? 'Nu' : 'Nam',
+        baseSalary: Number(salary) || 22000000,
+        contractType: contractType.toLowerCase().includes('thử việc') ? 'THU_VIEC' : 'CHINH_THUC',
+        joinedDate: new Date().toISOString().split('T')[0],
+      });
+    } catch (err) {
+      console.warn('API save notice (fallback to local state):', err.message || err);
+    }
+
+    // 2. Dispatch custom event so Page4_Directory updates immediately in UI
+    window.dispatchEvent(new CustomEvent('nexus:employee-added', { detail: newEmployee }));
+
+    try {
+      confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
     } catch (err) {}
+
     setTimeout(() => {
       setSubmitted(false);
       onClose();
-    }, 1500);
+    }, 1200);
   };
 
   return (
@@ -176,7 +232,7 @@ export default function Modal4A_Onboarding({ isOpen, onClose }) {
               <div>
                 <label className="text-[11px] font-bold text-slate-600 block mb-1">Mã nhân viên tự sinh:</label>
                 <span className="bg-blue-100 text-blue-800 font-mono font-bold px-3 py-1.5 rounded-lg border border-blue-200 block text-center">
-                  NV-1007
+                  {employeeId}
                 </span>
               </div>
 
@@ -184,7 +240,8 @@ export default function Modal4A_Onboarding({ isOpen, onClose }) {
                 <label className="text-[11px] font-bold text-slate-600 block mb-1">Email doanh nghiệp được cấp:</label>
                 <input
                   type="email"
-                  defaultValue="thuy.lt@nexus.vn"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium"
                 />
               </div>

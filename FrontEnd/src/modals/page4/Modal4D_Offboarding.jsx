@@ -30,13 +30,15 @@ export default function Modal4D_Offboarding({ isOpen, onClose, payload }) {
 
   const handleConfirm = () => {
     setCompleted(true);
+    // Dispatch event to remove employee from directory list
+    window.dispatchEvent(new CustomEvent('nexus:employee-deleted', { detail: { id: emp.id } }));
     try {
       confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
     } catch (e) {}
     setTimeout(() => {
       setCompleted(false);
       onClose();
-    }, 1500);
+    }, 1200);
   };
 
   return (

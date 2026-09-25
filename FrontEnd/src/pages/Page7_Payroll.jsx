@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/common/Avatar';
+import payrollService from '../services/payrollService';
 import { mockPayrollSummary, mockPayrollAnomalies } from '../data/mockPayroll';
 import { mockEmployees } from '../data/mockEmployees';
 import confetti from 'canvas-confetti';
@@ -39,9 +40,51 @@ export default function Page7_Payroll() {
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [showNumbers, setShowNumbers] = useState(false);
   const [isCeoApproved, setIsCeoApproved] = useState(false);
+  const [apiPayslips, setApiPayslips] = useState([]);
+  const [apiPeriods, setApiPeriods] = useState([]);
+  const [myPayslip, setMyPayslip] = useState(null);
 
-  const handleCeoApprove = () => {
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchPayroll() {
+      try {
+        if (currentRole.key === 'EMPLOYEE') {
+          const res = await payrollService.getMyPayslips();
+          if (res && res.success && res.data && res.data.length > 0 && isMounted) {
+            setMyPayslip(res.data[0]);
+          }
+        } else {
+          const [periodsRes, payslipsRes] = await Promise.all([
+            payrollService.getPeriods().catch(() => null),
+            payrollService.getPayslips().catch(() => null)
+          ]);
+          if (periodsRes?.success && Array.isArray(periodsRes.data) && isMounted) {
+            setApiPeriods(periodsRes.data);
+          }
+          if (payslipsRes?.success && Array.isArray(payslipsRes.data) && isMounted) {
+            setApiPayslips(payslipsRes.data);
+          }
+        }
+      } catch (err) {
+        console.warn('Backend payroll notice, fallback to mock:', err);
+      }
+    }
+    fetchPayroll();
+    return () => { isMounted = false; };
+  }, [currentRole.key]);
+
+  const handleCeoApprove = async () => {
     setIsCeoApproved(true);
+    try {
+      const periodCode = selectedPeriod.includes('09/2026') ? '2026-09' : '2026-08';
+      await payrollService.calculate(periodCode);
+      const updated = await payrollService.getPayslips();
+      if (updated?.success && Array.isArray(updated.data)) {
+        setApiPayslips(updated.data);
+      }
+    } catch (e) {
+      console.warn('Backend calculate notice:', e);
+    }
     try {
       confetti({
         particleCount: 70,
@@ -142,7 +185,9 @@ export default function Page7_Payroll() {
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 p-4 rounded-xl border border-blue-100 flex flex-col items-start md:items-end">
             <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Thực nhận</span>
             <div className="text-2xl md:text-3xl font-bold font-mono text-blue-700 mt-0.5">
-              {showNumbers ? '31,060,000 ₫' : '•••••••• ₫'}
+              {showNumbers 
+                ? (myPayslip ? Number(myPayslip.net_salary).toLocaleString('vi-VN') + ' ₫' : '31,060,000 ₫') 
+                : '•••••••• ₫'}
             </div>
             <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
               <CheckCircle2 className="w-3.5 h-3.5" /> Đã khấu trừ BHXH và Thuế TNCN
@@ -665,76 +710,107 @@ export default function Page7_Payroll() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
-              {filteredEmployees.map((emp) => {
+              {(apiPayslips.length > 0 ? apiPayslips.filter(ps => {
+                const matchesSearch = 
+                  (ps.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  (ps.employee_id || '').toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesDept = departmentFilter === 'all' || (ps.department_name || '').includes(departmentFilter);
+                return matchesSearch && matchesDept;
+              }).map(ps => ({
+                id: ps.employee_id,
+                name: ps.full_name,
+                avatar: ps.avatar_url,
+                role: ps.job_title,
+                base: parseFloat(ps.base_salary) || 0,
+                days: `${ps.actual_work_days} / 22 ngày`,
+                ot: parseFloat(ps.ot_pay) || 0,
+                kpi: parseFloat(ps.allowances || ps.bonus) || 0,
+                bhxh: parseFloat(ps.bhxh_amount) || 0,
+                tax: parseFloat(ps.pit_amount) || 0,
+                net: parseFloat(ps.net_salary) || 0,
+                raw: ps
+              })) : filteredEmployees.map(emp => {
                 const base = emp.contractSalary;
                 const ot = emp.id === 'NV-1002' ? 5200000 : 1200000;
                 const kpi = emp.kpiScore >= 95 ? 4000000 : 2000000;
                 const bhxh = Math.round(base * 0.105);
                 const tax = Math.round(base * 0.05);
                 const net = base + ot + kpi - bhxh - tax;
-
-                return (
-                  <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar
-                          src={emp.avatar}
-                          name={emp.name}
-                          id={emp.id}
-                          size="sm"
-                          shape="circle"
-                        />
-                        <div>
-                          <div className="font-bold text-slate-900">{emp.name}</div>
-                          <div className="text-[10px] text-slate-400">{emp.role}</div>
-                        </div>
+                return {
+                  id: emp.id,
+                  name: emp.name,
+                  avatar: emp.avatar,
+                  role: emp.role,
+                  base,
+                  days: '22 / 22 ngày',
+                  ot,
+                  kpi,
+                  bhxh,
+                  tax,
+                  net,
+                  raw: emp
+                };
+              })).map((item) => (
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2.5">
+                      <Avatar
+                        src={item.avatar}
+                        name={item.name}
+                        id={item.id}
+                        size="sm"
+                        shape="circle"
+                      />
+                      <div>
+                        <div className="font-bold text-slate-900">{item.name}</div>
+                        <div className="text-[10px] text-slate-400">{item.role}</div>
                       </div>
-                    </td>
+                    </div>
+                  </td>
 
-                    <td className="py-3 px-4 font-mono font-bold text-slate-600">
-                      {emp.id}
-                    </td>
+                  <td className="py-3 px-4 font-mono font-bold text-slate-600">
+                    {item.id}
+                  </td>
 
-                    <td className="py-3 px-4 font-mono text-slate-700 font-semibold">
-                      {base.toLocaleString('vi-VN')} đ
-                    </td>
+                  <td className="py-3 px-4 font-mono text-slate-700 font-semibold">
+                    {item.base.toLocaleString('vi-VN')} đ
+                  </td>
 
-                    <td className="py-3 px-4 font-bold text-slate-800">
-                      22 / 22 ngày
-                    </td>
+                  <td className="py-3 px-4 font-bold text-slate-800">
+                    {item.days}
+                  </td>
 
-                    <td className="py-3 px-4 font-mono font-semibold text-amber-600">
-                      +{ot.toLocaleString('vi-VN')} đ
-                    </td>
+                  <td className="py-3 px-4 font-mono font-semibold text-amber-600">
+                    +{item.ot.toLocaleString('vi-VN')} đ
+                  </td>
 
-                    <td className="py-3 px-4 font-mono font-semibold text-emerald-600">
-                      +{kpi.toLocaleString('vi-VN')} đ
-                    </td>
+                  <td className="py-3 px-4 font-mono font-semibold text-emerald-600">
+                    +{item.kpi.toLocaleString('vi-VN')} đ
+                  </td>
 
-                    <td className="py-3 px-4 font-mono text-rose-600">
-                      -{bhxh.toLocaleString('vi-VN')} đ
-                    </td>
+                  <td className="py-3 px-4 font-mono text-rose-600">
+                    -{item.bhxh.toLocaleString('vi-VN')} đ
+                  </td>
 
-                    <td className="py-3 px-4 font-mono text-rose-600">
-                      -{tax.toLocaleString('vi-VN')} đ
-                    </td>
+                  <td className="py-3 px-4 font-mono text-rose-600">
+                    -{item.tax.toLocaleString('vi-VN')} đ
+                  </td>
 
-                    <td className="py-3 px-4 font-mono font-bold text-blue-600 text-[13px]">
-                      {net.toLocaleString('vi-VN')} đ
-                    </td>
+                  <td className="py-3 px-4 font-mono font-bold text-blue-600 text-[13px]">
+                    {item.net.toLocaleString('vi-VN')} đ
+                  </td>
 
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openModal('modal3C', emp)}
-                        className="text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer"
-                      >
-                        Xem phiếu
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                  <td className="py-3 px-4 text-right">
+                    <button
+                      type="button"
+                      onClick={() => openModal('modal3C', item.raw)}
+                      className="text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer"
+                    >
+                      Xem phiếu
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

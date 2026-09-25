@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/common/Avatar';
+import dashboardService from '../services/dashboardService';
 import { 
   Users, 
   CheckCircle2, 
@@ -38,6 +39,23 @@ export default function Page2_Dashboard() {
   const { currentRole } = useAuth();
   const [chartTab, setChartTab] = useState('6m');
   const [approvedLeaves, setApprovedLeaves] = useState([]);
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchStats() {
+      try {
+        const res = await dashboardService.getStats();
+        if (res && res.success && res.data && isMounted) {
+          setStats(res.data);
+        }
+      } catch (e) {
+        console.warn('Dashboard stats fallback to local mock:', e);
+      }
+    }
+    fetchStats();
+    return () => { isMounted = false; };
+  }, [currentRole.key]);
 
   const handleApproveLeave = (name) => {
     setApprovedLeaves((prev) => [...prev, name]);

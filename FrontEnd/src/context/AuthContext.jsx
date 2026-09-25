@@ -102,20 +102,37 @@ ROLES.employee = ROLES.EMPLOYEE;
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  // Default to HR Director (Trần Mai Hương) as primary working interface
-  const [currentRole, setCurrentRole] = useState(ROLES.HR_DIRECTOR);
+  // Khởi tạo role từ localStorage để duy trì trạng thái khi nhấn F5
+  const [currentRole, setCurrentRole] = useState(() => {
+    try {
+      const savedKey = localStorage.getItem('nexus_role_key');
+      if (savedKey) {
+        const upper = savedKey.toUpperCase();
+        if (ROLES[savedKey]) return ROLES[savedKey];
+        if (ROLES[upper]) return ROLES[upper];
+      }
+    } catch (e) {}
+    return ROLES.HR_DIRECTOR;
+  });
 
   const switchRole = (roleKey) => {
-    // Lookup with casing tolerance
     const upperKey = (roleKey || '').toUpperCase();
+    let target = null;
     if (ROLES[roleKey]) {
-      setCurrentRole(ROLES[roleKey]);
+      target = ROLES[roleKey];
     } else if (ROLES[upperKey]) {
-      setCurrentRole(ROLES[upperKey]);
+      target = ROLES[upperKey];
     } else if (roleKey === 'employee') {
-      setCurrentRole(ROLES.EMPLOYEE);
+      target = ROLES.EMPLOYEE;
     } else if (roleKey === 'hr_director') {
-      setCurrentRole(ROLES.HR_DIRECTOR);
+      target = ROLES.HR_DIRECTOR;
+    }
+
+    if (target) {
+      setCurrentRole(target);
+      try {
+        localStorage.setItem('nexus_role_key', target.key);
+      } catch (e) {}
     }
   };
 
