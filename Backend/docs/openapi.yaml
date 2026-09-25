@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: NEXUS HRMS Backend API
-  version: 1.2.0
+  version: 1.3.0
   description: >
     REST API for the NEXUS HRMS frontend. Success bodies are `{ success: true, data, pagination? }`
     (some legacy endpoints add extra top-level fields). Error bodies are
@@ -21,6 +21,11 @@ tags:
   - name: users
   - name: employees
   - name: contracts
+  - name: attendance
+  - name: leaves
+  - name: overtime
+  - name: medical
+  - name: payroll
   - name: departments
   - name: positions
   - name: audit
@@ -392,7 +397,7 @@ paths:
     put:
       tags: [employees]
       summary: Update an employee
-      description: Partial update; `null` clears a nullable field. `status: DA_NGHI_VIEC` is refused (use offboard) and a terminated employee cannot change status.
+      description: "Partial update; `null` clears a nullable field. `status: DA_NGHI_VIEC` is refused (use offboard) and a terminated employee cannot change status."
       parameters:
         - { $ref: '#/components/parameters/empId' }
       requestBody:
@@ -563,7 +568,7 @@ paths:
     get:
       tags: [departments]
       summary: List active departments with head count
-      description: `budget_yearly` is included only for CEO and HR_DIRECTOR.
+      description: "`budget_yearly` is included only for CEO and HR_DIRECTOR."
       responses:
         '200':
           description: Departments
@@ -595,7 +600,7 @@ paths:
     get:
       tags: [departments]
       summary: Get one department
-      description: `budget_yearly` is included only for CEO and HR_DIRECTOR.
+      description: "`budget_yearly` is included only for CEO and HR_DIRECTOR."
       parameters:
         - { $ref: '#/components/parameters/deptId' }
       responses:
@@ -719,6 +724,675 @@ paths:
           description: Deactivated
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+  /attendance:
+    get:
+      tags: [attendance]
+      summary: Attendance history (paged)
+      description: >
+        EMPLOYEE sees only their own rows, LINE_MANAGER their department, HR/CEO everyone. A KIOSK account cannot read.
+      parameters:
+        - { name: date, in: query, schema: { type: string } }
+        - { name: month, in: query, schema: { type: string } }
+        - { name: department, in: query, schema: { type: string } }
+        - { name: employeeId, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/limit' }
+      responses:
+        '200':
+          description: Page of attendance rows
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /attendance/check-in:
+    post:
+      tags: [attendance]
+      summary: Check in for today (company time zone)
+      description: >
+        Method is one of gps, manual, qr, kiosk (face_id is no longer accepted). The DB trigger computes late minutes against 08:00 Vietnam time. 409 when already checked in; 403 when the account has no employee record.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                method: { type: string, enum: [gps, manual, qr, kiosk] }
+                gpsLat: { type: number, minimum: -90, maximum: 90 }
+                gpsLng: { type: number, minimum: -180, maximum: 180 }
+      responses:
+        '201':
+          description: Checked in
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /attendance/check-out:
+    post:
+      tags: [attendance]
+      summary: Check out for today
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                method: { type: string, enum: [gps, manual, qr, kiosk] }
+      responses:
+        '200':
+          description: Checked out (work_hours and ot_hours computed)
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /attendance/me/today:
+    get:
+      tags: [attendance]
+      summary: Today's punch state of the caller
+      responses:
+        '200':
+          description: row (or null), checkedIn, checkedOut
+        '403': { $ref: '#/components/responses/Error' }
+  /attendance/qr:
+    get:
+      tags: [attendance]
+      summary: The caller's attendance QR token
+      description: >
+        Short-lived (60 s) and single-use. Render it as a QR code; a kiosk scans it and posts it to /attendance/kiosk/punch. It is signed with a key derived from the JWT secret and cannot be used as an access token.
+      responses:
+        '200':
+          description: { qrToken, expiresIn, employeeId }
+        '403': { $ref: '#/components/responses/Error' }
+  /attendance/kiosk/punch:
+    post:
+      tags: [attendance]
+      summary: Kiosk scans an employee QR
+      description: >
+        Roles KIOSK, HR_DIRECTOR, CEO. The first scan of the day checks in (201, action CHECK_IN), the second checks out (200, CHECK_OUT), a third is 409. A second scan sooner than PUNCH_MIN_GAP_SECONDS is 409 PUNCH_TOO_SOON. Errors: 401 INVALID_QR_TOKEN / QR_TOKEN_USED, 404 unknown employee, 409 terminated employee.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [qrToken]
+              properties:
+                qrToken: { type: string }
+      responses:
+        '200':
+          description: Punch recorded
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /attendance/adjust:
+    post:
+      tags: [attendance]
+      summary: Correct one day (upsert)
+      description: >
+        Roles CEO, HR_DIRECTOR. Times are ISO 8601 with offset; the trigger recomputes late minutes, hours and status from them. A status-only day (for example NGHI_PHEP) needs no times. 201 when the day was created, 200 when updated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employeeId, workDate]
+              properties:
+                employeeId: { type: string }
+                workDate: { type: string, format: date }
+                checkIn: { type: string, format: date-time }
+                checkOut: { type: string, format: date-time }
+                status: { $ref: '#/components/schemas/AttendanceStatus' }
+                note: { type: string }
+      responses:
+        '200':
+          description: Updated day
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /attendance/timesheet:
+    get:
+      tags: [attendance]
+      summary: Monthly timesheet matrix
+      description: >
+        One row per employee with `cells` (date -> status) and `totals` (work_days, late_days, leave_days, absent_days, ot_hours). Scoped by role.
+      parameters:
+        - { name: month, in: query, required: true, schema: { type: string, example: 2026-09 } }
+        - { name: department, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: { month, days, rows }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /attendance/exceptions:
+    get:
+      tags: [attendance]
+      summary: Late and absent employees for a day
+      description: >
+        Roles CEO, HR_DIRECTOR, LINE_MANAGER (own department). `absent` lists active employees with no punch and no approved leave; it is empty on weekends.
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: { date, late, absent }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /attendance/live:
+    get:
+      tags: [attendance]
+      summary: Today's latest punches (max 50)
+      responses:
+        '200':
+          description: Latest events, newest first
+        '403': { $ref: '#/components/responses/Error' }
+  /leaves:
+    post:
+      tags: [leaves]
+      summary: Submit a leave request
+      description: >
+        snake_case field names are accepted too. Refused with 409 LEAVE_OVERLAP (overlaps an active request), 409 INSUFFICIENT_BALANCE (balance minus pending requests), 400 for inactive types or invalid dates. Chain: employee -> LINE_MANAGER of the same department -> HR_DIRECTOR. Requests of a LINE_MANAGER or HR_DIRECTOR are approved only by the CEO, a CEO request is approved automatically, the CEO may approve any pending step directly, and nobody acts on their own request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leaveTypeId, startDate, endDate, reason]
+              properties:
+                leaveTypeId: { type: string, example: LT-AL }
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+                totalDays: { type: number, multipleOf: 0.5, description: Optional; Monday-Friday days are computed when omitted }
+                reason: { type: string }
+                handoverTo: { type: string, nullable: true }
+                attachmentUrl: { type: string, nullable: true }
+                attachmentName: { type: string, nullable: true }
+      responses:
+        '201':
+          description: Created (stage depends on the requester)
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    get:
+      tags: [leaves]
+      summary: List leave requests (paged)
+      parameters:
+        - { name: stage, in: query, schema: { type: string, enum: [CHO_TRUONG_PHONG_DUYET, CHO_HR_PHE_CHUAN, DA_PHE_DUYET, TU_CHOI, DA_HUY] } }
+        - { name: month, in: query, schema: { type: string } }
+        - { name: employeeId, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/limit' }
+      responses:
+        '200':
+          description: Page of requests, scoped by role
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /leaves/calendar:
+    get:
+      tags: [leaves]
+      summary: Leaves overlapping a month
+      parameters:
+        - { name: month, in: query, required: true, schema: { type: string, example: 2026-09 } }
+        - { name: department, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Pending and approved leaves
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /leaves/types:
+    get:
+      tags: [leaves]
+      summary: Leave types
+      responses:
+        '200':
+          description: Leave types
+  /leaves/balances/{employeeId}:
+    get:
+      tags: [leaves]
+      summary: Leave balances for the current year
+      description: >
+        Use `me` for the caller. LINE_MANAGER may read their department, HR/CEO everyone.
+      parameters:
+        - { name: employeeId, in: path, required: true, schema: { type: string, example: me } }
+      responses:
+        '200':
+          description: Balances
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /leaves/{id}:
+    get:
+      tags: [leaves]
+      summary: Leave request detail
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: LP-2026-101 } }
+      responses:
+        '200':
+          description: Request with approver names
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /leaves/{id}/approve:
+    patch:
+      tags: [leaves]
+      summary: Approve the current step
+      description: >
+        Chain: employee -> LINE_MANAGER of the same department -> HR_DIRECTOR. Requests of a LINE_MANAGER or HR_DIRECTOR are approved only by the CEO, a CEO request is approved automatically, the CEO may approve any pending step directly, and nobody acts on their own request. Final approval fails with 409 INSUFFICIENT_BALANCE when the days no longer fit; the balance trigger charges the days.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: LP-2026-101 } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '200':
+          description: Updated request
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /leaves/{id}/reject:
+    patch:
+      tags: [leaves]
+      summary: Reject the request
+      description: >
+        Chain: employee -> LINE_MANAGER of the same department -> HR_DIRECTOR. Requests of a LINE_MANAGER or HR_DIRECTOR are approved only by the CEO, a CEO request is approved automatically, the CEO may approve any pending step directly, and nobody acts on their own request.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: LP-2026-101 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string, description: Required }
+      responses:
+        '200':
+          description: Rejected request
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /leaves/{id}/cancel:
+    patch:
+      tags: [leaves]
+      summary: Cancel own request
+      description: >
+        Approved leave is refunded by the trigger; a leave that already ended cannot be cancelled (409 LEAVE_ALREADY_TAKEN).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: LP-2026-101 } }
+      responses:
+        '200':
+          description: Cancelled request
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /ot-requests:
+    post:
+      tags: [overtime]
+      summary: Submit overtime request
+      description: >
+        Hours are computed from the times (max 4 h a day). 409 OT_OVERLAP for an overlapping request that day and 409 OT_MONTHLY_LIMIT above 40 h a month (legal limit). An approved request of a past day cannot be cancelled. Chain: employee -> LINE_MANAGER of the same department -> HR_DIRECTOR. Requests of a LINE_MANAGER or HR_DIRECTOR are approved only by the CEO, a CEO request is approved automatically, the CEO may approve any pending step directly, and nobody acts on their own request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workDate, startTime, endTime, reason]
+              properties:
+                workDate: { type: string, format: date }
+                startTime: { type: string, example: "18:00" }
+                endTime: { type: string, example: "20:30" }
+                reason: { type: string }
+      responses:
+        '201':
+          description: Created
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    get:
+      tags: [overtime]
+      summary: List overtime requests (paged)
+      parameters:
+        - { name: stage, in: query, schema: { type: string } }
+        - { name: month, in: query, schema: { type: string } }
+        - { name: employeeId, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/limit' }
+      responses:
+        '200':
+          description: Page, scoped by role
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /ot-requests/{id}:
+    get:
+      tags: [overtime]
+      summary: overtime request detail
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: OT-2026-001 } }
+      responses:
+        '200':
+          description: Detail
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /ot-requests/{id}/approve:
+    patch:
+      tags: [overtime]
+      summary: Approve the current step
+      description: >
+        Chain: employee -> LINE_MANAGER of the same department -> HR_DIRECTOR. Requests of a LINE_MANAGER or HR_DIRECTOR are approved only by the CEO, a CEO request is approved automatically, the CEO may approve any pending step directly, and nobody acts on their own request.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: OT-2026-001 } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '200':
+          description: Updated
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /ot-requests/{id}/reject:
+    patch:
+      tags: [overtime]
+      summary: Reject
+      description: >
+        Chain: employee -> LINE_MANAGER of the same department -> HR_DIRECTOR. Requests of a LINE_MANAGER or HR_DIRECTOR are approved only by the CEO, a CEO request is approved automatically, the CEO may approve any pending step directly, and nobody acts on their own request.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: OT-2026-001 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string, description: Required }
+      responses:
+        '200':
+          description: Rejected
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /ot-requests/{id}/cancel:
+    patch:
+      tags: [overtime]
+      summary: Cancel own request
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: OT-2026-001 } }
+      responses:
+        '200':
+          description: Cancelled
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /medical-claims:
+    post:
+      tags: [medical]
+      summary: Submit medical claim
+      description: >
+        An approved claim cannot be cancelled (409 CLAIM_ALREADY_APPROVED). Chain: employee -> LINE_MANAGER of the same department -> HR_DIRECTOR. Requests of a LINE_MANAGER or HR_DIRECTOR are approved only by the CEO, a CEO request is approved automatically, the CEO may approve any pending step directly, and nobody acts on their own request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [claimDate, amount, description]
+              properties:
+                claimDate: { type: string, format: date, description: Not in the future }
+                amount: { type: number, exclusiveMinimum: true, minimum: 0 }
+                hospital: { type: string, nullable: true }
+                description: { type: string }
+                attachmentUrl: { type: string, nullable: true }
+                leaveRequestId: { type: string, nullable: true, description: Must be the caller's own approved sick leave }
+      responses:
+        '201':
+          description: Created
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    get:
+      tags: [medical]
+      summary: List medical claims (paged)
+      parameters:
+        - { name: stage, in: query, schema: { type: string } }
+        - { name: month, in: query, schema: { type: string } }
+        - { name: employeeId, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/limit' }
+      responses:
+        '200':
+          description: Page, scoped by role
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /medical-claims/{id}:
+    get:
+      tags: [medical]
+      summary: medical claim detail
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: MC-2026-001 } }
+      responses:
+        '200':
+          description: Detail
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /medical-claims/{id}/approve:
+    patch:
+      tags: [medical]
+      summary: Approve the current step
+      description: >
+        Chain: employee -> LINE_MANAGER of the same department -> HR_DIRECTOR. Requests of a LINE_MANAGER or HR_DIRECTOR are approved only by the CEO, a CEO request is approved automatically, the CEO may approve any pending step directly, and nobody acts on their own request.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: MC-2026-001 } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '200':
+          description: Updated
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /medical-claims/{id}/reject:
+    patch:
+      tags: [medical]
+      summary: Reject
+      description: >
+        Chain: employee -> LINE_MANAGER of the same department -> HR_DIRECTOR. Requests of a LINE_MANAGER or HR_DIRECTOR are approved only by the CEO, a CEO request is approved automatically, the CEO may approve any pending step directly, and nobody acts on their own request.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: MC-2026-001 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string, description: Required }
+      responses:
+        '200':
+          description: Rejected
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /medical-claims/{id}/cancel:
+    patch:
+      tags: [medical]
+      summary: Cancel own request
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: MC-2026-001 } }
+      responses:
+        '200':
+          description: Cancelled
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /payroll/periods:
+    get:
+      tags: [payroll]
+      summary: Payroll periods (latest 24)
+      description: >
+        Roles CEO, HR_DIRECTOR.
+      responses:
+        '200':
+          description: Periods
+        '403': { $ref: '#/components/responses/Error' }
+  /payroll/periods/{id}:
+    get:
+      tags: [payroll]
+      summary: One payroll period
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: '1' } }
+      responses:
+        '200':
+          description: Period
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /payroll/periods/{id}/lock:
+    post:
+      tags: [payroll]
+      summary: Lock (chốt) a draft period
+      description: >
+        DU_THAO -> DA_CHOT. 409 NO_PAYSLIPS when nothing was calculated, 409 ANOMALIES_PENDING (details = the violations) when legal violations exist unless `acknowledgeAnomalies` is true. A locked period can never be recalculated.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: '1' } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                acknowledgeAnomalies: { type: boolean }
+      responses:
+        '200':
+          description: Locked period
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /payroll/periods/{id}/transfer:
+    post:
+      tags: [payroll]
+      summary: Mark a locked period as paid by bank transfer
+      description: >
+        DA_CHOT -> DA_CHUYEN_KHOAN and every payslip gets paid_date. 409 MISSING_BANK_ACCOUNT (details = employees) until all payslips have bank details.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: '1' } }
+      responses:
+        '200':
+          description: Transferred period
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /payroll/periods/{id}/anomalies:
+    get:
+      tags: [payroll]
+      summary: Anomaly report of a period
+      description: >
+        Types: OT_OVER_LIMIT (violation, > 40 h), OT_UNAPPROVED, MISSING_BANK, NO_ATTENDANCE. Sorted by severity (Cao, Trung bình, Thấp).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: '1' } }
+      responses:
+        '200':
+          description: Anomalies
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /payroll/periods/{id}/bank-transfer:
+    get:
+      tags: [payroll]
+      summary: Bank transfer batch of a locked period
+      description: >
+        `totalAmount` equals the period total_net; employees without bank details are listed in `missingBank`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: '1' } }
+      responses:
+        '200':
+          description: { period, status, count, totalAmount, items, missingBank }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /payroll/payslips:
+    get:
+      tags: [payroll]
+      summary: Payslips (paged)
+      description: >
+        CEO and HR_DIRECTOR see everything including drafts. Everyone else (EMPLOYEE, LINE_MANAGER) sees only their own payslips and only for locked periods. ADMIN and KIOSK get 403.
+      parameters:
+        - { name: period, in: query, schema: { type: string, example: 2026-09 } }
+        - { $ref: '#/components/parameters/page' }
+        - { name: limit, in: query, description: Clamped to 1..500, schema: { type: integer, default: 100, maximum: 500 } }
+      responses:
+        '200':
+          description: Page of payslips
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /payroll/payslips/{id}:
+    get:
+      tags: [payroll]
+      summary: One payslip
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, example: '1' } }
+      responses:
+        '200':
+          description: Payslip
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /payroll/me:
+    get:
+      tags: [payroll]
+      summary: The caller's latest 12 published payslips
+      responses:
+        '200':
+          description: Payslips
+        '403': { $ref: '#/components/responses/Error' }
+  /payroll/calculate:
+    post:
+      tags: [payroll]
+      summary: Calculate (or recalculate) the draft payroll of a month
+      description: >
+        Roles CEO, HR_DIRECTOR. Includes probation staff and employees who left during the month; days above 22 are capped; progressive personal income tax and capped insurance are applied. 409 PERIOD_LOCKED for a locked or transferred period.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [period]
+              properties:
+                period: { type: string, example: 2026-09 }
+      responses:
+        '200':
+          description: { period, headcount, totalNet, totalBhxh, totalTax, totalOtHours }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /audit-logs:
     get:
       tags: [audit]
@@ -804,6 +1478,9 @@ components:
     Role:
       type: string
       enum: [CEO, HR_DIRECTOR, LINE_MANAGER, EMPLOYEE, KIOSK, ADMIN]
+    AttendanceStatus:
+      type: string
+      enum: [DUNG_GIO, DI_MUON, VE_SOM, NGHI_PHEP, VANG_KHONG_PHEP, CONG_TAC, NGHI_LE]
     EmployeeStatus:
       type: string
       enum: [DANG_LAM_VIEC, THU_VIEC, TAM_HOAN, DA_NGHI_VIEC]
@@ -844,7 +1521,7 @@ components:
       type: object
       description: camelCase input. On create `fullName`, `jobTitle`, `workEmail` and `joinedDate` are required.
       properties:
-        id: { type: string, description: 3-20 chars [A-Za-z0-9-]; generated when omitted }
+        id: { type: string, description: "3-20 chars [A-Za-z0-9-]; generated when omitted" }
         fullName: { type: string }
         jobTitle: { type: string }
         workEmail: { type: string }

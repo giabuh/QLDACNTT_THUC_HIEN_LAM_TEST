@@ -22,7 +22,7 @@ function documentedOperations() {
 
 const toOpenApiPath = (p) => p.replace(/^\/api/, '').replace(/:([A-Za-z]+)/g, '{$1}');
 
-const DOCUMENTED_MODULES = ['auth', 'users', 'employees', 'contracts', 'departments', 'positions', 'auditLogs'];
+const DOCUMENTED_MODULES = ['auth', 'users', 'employees', 'contracts', 'departments', 'positions', 'attendance', 'leaves', 'otRequests', 'medicalClaims', 'payroll', 'auditLogs'];
 
 test('openapi.yaml declares the basics', () => {
   assert.match(text, /^openapi: 3\.0\.\d/m);
@@ -41,4 +41,51 @@ test('every catalog endpoint of the documented modules is described in openapi.y
     }
   }
   assert.deepEqual(missing, []);
+});
+
+// --- structural validity (parsed with a real YAML parser) ---
+const YAML = require('yaml');
+const spec = YAML.parse(text);
+
+test('openapi.yaml is valid YAML and every $ref resolves', () => {
+  const missing = [];
+  const walk = (node) => {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (node && typeof node === 'object') {
+      for (const [k, v] of Object.entries(node)) {
+        if (k === '$ref') {
+          const [, , section, name] = v.split('/');
+          if (!spec.components?.[section]?.[name]) missing.push(v);
+        } else walk(v);
+      }
+    }
+  };
+  walk(spec);
+  assert.deepEqual(missing, []);
+});
+
+test('every operation has tags, a summary and at least one response', () => {
+  const bad = [];
+  for (const [p, item] of Object.entries(spec.paths)) {
+    for (const [method, o] of Object.entries(item)) {
+      if (!['get', 'post', 'put', 'patch', 'delete'].includes(method)) continue;
+      if (!o.tags?.length || !o.summary || !o.responses || Object.keys(o.responses).length === 0) bad.push(`${method} ${p}`);
+    }
+  }
+  assert.deepEqual(bad, []);
+});
+
+test('path parameters used in a path are declared on each operation', () => {
+  const bad = [];
+  const declared = (o) => (o.parameters || []).map((prm) => (prm.$ref ? spec.components.parameters[prm.$ref.split('/').pop()] : prm))
+    .filter((prm) => prm.in === 'path').map((prm) => prm.name);
+  for (const [p, item] of Object.entries(spec.paths)) {
+    const inPath = [...p.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+    for (const [method, o] of Object.entries(item)) {
+      if (!['get', 'post', 'put', 'patch', 'delete'].includes(method)) continue;
+      const have = declared(o);
+      for (const name of inPath) if (!have.includes(name)) bad.push(`${method} ${p} missing {${name}}`);
+    }
+  }
+  assert.deepEqual(bad, []);
 });

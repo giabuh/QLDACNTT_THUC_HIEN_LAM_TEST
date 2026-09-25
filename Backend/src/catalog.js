@@ -1,6 +1,6 @@
 module.exports = {
   "name": "NEXUS HR Management System API",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "endpoints": {
     "auth": {
       "POST /api/auth/login": "Đăng nhập (trả accessToken, refreshToken)",
@@ -49,25 +49,55 @@ module.exports = {
       "DELETE /api/positions/:id": "Ngừng sử dụng chức danh"
     },
     "attendance": {
-      "POST /api/attendance/check-in": "Check-in",
+      "POST /api/attendance/check-in": "Check-in (gps/manual/qr/kiosk)",
       "POST /api/attendance/check-out": "Check-out",
-      "GET  /api/attendance": "Lịch sử chấm công",
-      "GET  /api/attendance/me/today": "Trạng thái hôm nay"
+      "GET  /api/attendance/me/today": "Trạng thái chấm công hôm nay",
+      "GET  /api/attendance/qr": "Mã QR chấm công cá nhân (60 giây, dùng một lần)",
+      "POST /api/attendance/kiosk/punch": "Kiosk quét QR: lần 1 vào, lần 2 ra (KIOSK/HRD/CEO)",
+      "POST /api/attendance/adjust": "Điều chỉnh chấm công một ngày (HRD/CEO)",
+      "GET  /api/attendance/timesheet": "Bảng công tháng theo nhân viên/ngày",
+      "GET  /api/attendance/exceptions": "Đi muộn và vắng mặt trong ngày",
+      "GET  /api/attendance/live": "Lượt chấm công mới nhất hôm nay",
+      "GET  /api/attendance": "Lịch sử chấm công (phân trang, theo quyền)"
     },
     "leaves": {
-      "POST  /api/leaves": "Nộp đơn phép",
-      "GET   /api/leaves": "Danh sách đơn phép",
+      "POST  /api/leaves": "Nộp đơn phép (kiểm tra trùng ngày, số dư)",
+      "GET   /api/leaves": "Danh sách đơn phép (phân trang, theo quyền)",
+      "GET   /api/leaves/calendar": "Lịch nghỉ phép theo tháng",
       "GET   /api/leaves/types": "Loại phép",
-      "GET   /api/leaves/balances/:empId": "Số dư phép",
-      "PATCH /api/leaves/:id/approve": "Duyệt phép (2 cấp)",
-      "PATCH /api/leaves/:id/reject": "Từ chối phép",
-      "PATCH /api/leaves/:id/cancel": "Hủy đơn phép"
+      "GET   /api/leaves/balances/:employeeId": "Số dư phép (me hoặc mã NV)",
+      "GET   /api/leaves/:id": "Chi tiết đơn phép",
+      "PATCH /api/leaves/:id/approve": "Duyệt (NV → TP → HRD; QL/HRD → CEO)",
+      "PATCH /api/leaves/:id/reject": "Từ chối (bắt buộc lý do)",
+      "PATCH /api/leaves/:id/cancel": "Hủy đơn (chủ đơn)"
+    },
+    "otRequests": {
+      "POST  /api/ot-requests": "Nộp đăng ký làm thêm giờ",
+      "GET   /api/ot-requests": "Danh sách đăng ký làm thêm giờ (phân trang, theo quyền)",
+      "GET   /api/ot-requests/:id": "Chi tiết đăng ký làm thêm giờ",
+      "PATCH /api/ot-requests/:id/approve": "Duyệt theo chuỗi phê duyệt",
+      "PATCH /api/ot-requests/:id/reject": "Từ chối (bắt buộc lý do)",
+      "PATCH /api/ot-requests/:id/cancel": "Hủy (chủ đơn)"
+    },
+    "medicalClaims": {
+      "POST  /api/medical-claims": "Nộp đơn bồi thường y tế",
+      "GET   /api/medical-claims": "Danh sách đơn bồi thường y tế (phân trang, theo quyền)",
+      "GET   /api/medical-claims/:id": "Chi tiết đơn bồi thường y tế",
+      "PATCH /api/medical-claims/:id/approve": "Duyệt theo chuỗi phê duyệt",
+      "PATCH /api/medical-claims/:id/reject": "Từ chối (bắt buộc lý do)",
+      "PATCH /api/medical-claims/:id/cancel": "Hủy (chủ đơn)"
     },
     "payroll": {
-      "GET  /api/payroll/periods": "Kỳ lương",
-      "GET  /api/payroll/payslips": "Phiếu lương",
-      "GET  /api/payroll/me": "Lương cá nhân",
-      "POST /api/payroll/calculate": "Tính lương tháng (HRD)"
+      "GET  /api/payroll/periods": "Kỳ lương (HRD/CEO)",
+      "GET  /api/payroll/periods/:id": "Chi tiết kỳ lương",
+      "POST /api/payroll/periods/:id/lock": "Chốt bảng lương",
+      "POST /api/payroll/periods/:id/transfer": "Đánh dấu đã chuyển khoản",
+      "GET  /api/payroll/periods/:id/anomalies": "Bất thường trong kỳ lương",
+      "GET  /api/payroll/periods/:id/bank-transfer": "Danh sách chuyển khoản ngân hàng",
+      "GET  /api/payroll/payslips": "Phiếu lương (HRD/CEO tất cả; NV chỉ của mình sau khi chốt)",
+      "GET  /api/payroll/payslips/:id": "Chi tiết phiếu lương",
+      "GET  /api/payroll/me": "Phiếu lương của tôi (đã chốt)",
+      "POST /api/payroll/calculate": "Tính lương tháng (HRD/CEO)"
     },
     "projects": {
       "GET   /api/projects": "Danh sách dự án",
