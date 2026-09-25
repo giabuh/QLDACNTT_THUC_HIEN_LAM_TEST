@@ -26,6 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 export default function Modal4B_Profile360({ isOpen, onClose, payload }) {
   const { currentRole } = useAuth();
   const [activeTab, setActiveTab] = useState('info');
+  const [managerTab, setManagerTab] = useState('assignment'); // 'assignment' | 'kpi'
   const [isContractPdfOpen, setIsContractPdfOpen] = useState(false);
 
   const emp = payload || {
@@ -47,10 +48,13 @@ export default function Modal4B_Profile360({ isOpen, onClose, payload }) {
 
   const isStaff = currentRole?.key === 'EMPLOYEE';
   const isManager = currentRole?.key === 'LINE_MANAGER';
-  const isSelf = emp?.id === currentRole?.id;
-  const isRestrictedPeer = isStaff && !isSelf;
-  const isRestrictedManager = isManager && !isSelf;
-  const canViewConfidential = currentRole?.key === 'HR_DIRECTOR' || currentRole?.key === 'CEO' || isSelf;
+  const isCeo = currentRole?.key === 'CEO';
+  const isHrd = currentRole?.key === 'HR_DIRECTOR';
+
+  // Yêu cầu: Lý lịch nhân thân và Hợp đồng lương chỉ có HR và CEO thấy được
+  const canViewConfidential = isCeo || isHrd;
+  const isRestrictedManager = isManager && !canViewConfidential;
+  const isRestrictedPeer = isStaff && !canViewConfidential;
 
   return (
     <AppleModal
@@ -69,7 +73,12 @@ export default function Modal4B_Profile360({ isOpen, onClose, payload }) {
           : `Mã nhân viên: ${emp.id} • Dữ liệu xác thực thông tin và Hợp đồng lao động chính thức`
       }
       badge={
-        !canViewConfidential ? (
+        isRestrictedManager ? (
+          <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+            <Building className="w-3.5 h-3.5" />
+            Nhân sự bộ phận Kỹ thuật
+          </span>
+        ) : !canViewConfidential ? (
           <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-blue-200 flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5" />
             Đang làm việc tại văn phòng
@@ -219,64 +228,159 @@ export default function Modal4B_Profile360({ isOpen, onClose, payload }) {
             </div>
           </div>
         ) : isRestrictedManager ? (
-          /* Chế độ xem của Trưởng phòng: Không được xem CCCD/nhân thân hay lương thưởng, chỉ xem công tác & đánh giá hiệu suất */
+          /* Chế độ xem của Trưởng phòng: Tuyệt đối không hiển thị CCCD, nhân thân, BHXH, thuế TNCN hay lương thưởng */
           <div className="space-y-4 text-xs">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Vị trí công tác */}
-              <div className="p-4 rounded-xl bg-white border border-slate-200/90 space-y-3">
-                <h3 className="font-bold text-slate-900 uppercase text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
-                  <Building className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Vị trí công tác & Phân bổ nhiệm vụ</span>
-                </h3>
-                <div className="space-y-2.5">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500">Phòng ban:</span>
-                    <span className="font-semibold text-slate-800">{emp.department || 'Kỹ thuật Phần mềm'}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500">Chức danh chuyên môn:</span>
-                    <span className="font-semibold text-blue-700">{emp.role}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500">Số ngày phép năm còn lại:</span>
-                    <span className="font-bold text-emerald-700 font-mono">{emp.leaveBalance || 9.5} ngày</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500">Hòm thư điện tử:</span>
-                    <span className="font-mono text-slate-800">{emp.email}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Đánh giá hiệu suất nhân sự (Trưởng phòng có thẩm quyền xem & đánh giá) */}
-              <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-200 space-y-3">
-                <div className="flex items-center gap-2 pb-1 border-b border-purple-200">
-                  <Award className="w-4 h-4 text-purple-600" />
-                  <h3 className="font-bold text-purple-900 uppercase text-[11px]">
-                    Đánh giá hiệu suất & KPI (Mô hình 9-Box)
-                  </h3>
-                </div>
-                <div className="space-y-1.5 text-purple-900">
-                  <div className="flex justify-between">
-                    <span>Điểm KPI Tháng 09/2026:</span>
-                    <span className="font-bold font-mono text-emerald-700">{emp.kpiScore}% (Xuất sắc)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tỷ lệ chuyên cần tháng:</span>
-                    <span className="font-bold font-mono text-blue-700">{emp.attendanceRate || 100}%</span>
-                  </div>
-                  <p className="text-[11px] text-purple-800 italic pt-1 border-t border-purple-200/60">
-                    Phân nhóm: <strong>Ngôi sao tiềm năng (Superstar)</strong>. Đề xuất Trưởng phòng quy hoạch vào dự án trọng điểm Quý IV/2026.
-                  </p>
-                </div>
-              </div>
+            {/* Tab điều hướng dành riêng cho Trưởng phòng */}
+            <div className="flex gap-4 border-b border-slate-200 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setManagerTab('assignment')}
+                className={`pb-2.5 border-b-2 transition-colors cursor-pointer ${
+                  managerTab === 'assignment'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-slate-500 border-transparent hover:text-slate-800'
+                }`}
+              >
+                Vị trí công tác và Phân công nhiệm vụ
+              </button>
+              <button
+                type="button"
+                onClick={() => setManagerTab('kpi')}
+                className={`pb-2.5 border-b-2 transition-colors cursor-pointer ${
+                  managerTab === 'kpi'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-slate-500 border-transparent hover:text-slate-800'
+                }`}
+              >
+                Lịch sử KPI và Đánh giá hiệu suất
+              </button>
             </div>
+
+            {/* Nội dung theo Tab của Trưởng phòng */}
+            {managerTab === 'assignment' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-white border border-slate-200/90 space-y-3 shadow-2xs">
+                  <h3 className="font-bold text-slate-900 uppercase text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
+                    <Building className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Vị trí công tác và Phân công chuyên môn</span>
+                  </h3>
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Phòng ban trực thuộc:</span>
+                      <span className="font-semibold text-slate-800">{emp.department || 'Phòng Phát triển Phần mềm'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Chức danh đảm nhiệm:</span>
+                      <span className="font-semibold text-blue-700">{emp.role}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Đội nhóm dự án / Squad:</span>
+                      <span className="font-semibold text-slate-800">Squad Core Banking và Cloud Engine</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Cấp quản lý trực tiếp:</span>
+                      <span className="font-semibold text-slate-800">Vũ Đình Khang (Trưởng phòng)</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Số ngày phép năm còn lại:</span>
+                      <span className="font-bold text-emerald-700 font-mono">{emp.leaveBalance || 9.5} ngày</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-white border border-slate-200/90 space-y-3 shadow-2xs">
+                  <h3 className="font-bold text-slate-900 uppercase text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Thông tin liên hệ công vụ nội bộ</span>
+                  </h3>
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Hòm thư điện tử công vụ:</span>
+                      <span className="font-mono font-semibold text-slate-800">{emp.email}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Số máy lẻ bàn nội bộ:</span>
+                      <span className="font-mono text-slate-800 font-semibold">Ext: #{emp.phone ? emp.phone.slice(-4) : '1002'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Số điện thoại liên lạc:</span>
+                      <span className="font-mono text-slate-800 font-semibold">{emp.phone || '0909 112 233'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Vị trí chỗ ngồi làm việc:</span>
+                      <span className="text-slate-800 font-medium">Phòng Kỹ thuật - Tầng 4 Tòa nhà Nexus</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Trạng thái nhân sự:</span>
+                      <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                        Đang làm việc chính thức
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-purple-50/70 border border-purple-200 space-y-3 shadow-2xs">
+                  <div className="flex items-center gap-2 pb-1 border-b border-purple-200">
+                    <Award className="w-4 h-4 text-purple-600" />
+                    <h3 className="font-bold text-purple-900 uppercase text-[11px]">
+                      Đánh giá hiệu suất và KPI (Mô hình 9-Box)
+                    </h3>
+                  </div>
+                  <div className="space-y-2 text-purple-900">
+                    <div className="flex justify-between">
+                      <span>Điểm KPI Tháng 09/2026:</span>
+                      <span className="font-bold font-mono text-emerald-700">{emp.kpiScore}% (Xuất sắc)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tỷ lệ chuyên cần tháng:</span>
+                      <span className="font-bold font-mono text-blue-700">{emp.attendanceRate || 100}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Phân nhóm năng lực:</span>
+                      <span className="font-bold text-purple-800">Ngôi sao tiềm năng (Superstar)</span>
+                    </div>
+                    <p className="text-[11px] text-purple-800 italic pt-1 border-t border-purple-200/60 leading-relaxed">
+                      Nhận xét Trưởng phòng: Hoàn thành vượt tiến độ các task Sprint 38, chủ động hỗ trợ đồng đội trong squad. Đề xuất giữ vai trò Lead kỹ thuật cho dự án mới.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-white border border-slate-200/90 space-y-3 shadow-2xs">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <h3 className="font-bold text-slate-900 uppercase text-[11px]">
+                      Tiến độ và Trọng số nhiệm vụ được giao
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Nhiệm vụ đang thực hiện:</span>
+                      <span className="font-bold text-slate-800">3 nhiệm vụ (Sprint 38)</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Tỷ lệ hoàn thành đúng hạn:</span>
+                      <span className="font-bold text-emerald-600">100% (Không trễ hạn)</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Giờ công tiêu hao trong sprint:</span>
+                      <span className="font-mono font-bold text-blue-600">76.5h / 80.0h</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Thẩm quyền đánh giá:</span>
+                      <span className="text-slate-700 font-semibold">Trưởng phòng Kỹ thuật trực tiếp</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Thông báo bảo mật thông tin nhân thân và tiền lương đối với Trưởng phòng */}
             <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-amber-900 text-xs">
               <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
               <span>
-                Theo Quy chế bảo mật dữ liệu doanh nghiệp, thông tin lý lịch nhân thân (CCCD, địa chỉ cư trú, bảo hiểm) và hợp đồng lương thưởng được bảo mật, chỉ dành riêng cho Khối Quản Trị Nhân Sự (HR) và Ban Giám Đốc.
+                Theo Quy chế bảo mật dữ liệu doanh nghiệp và Luật Bảo vệ dữ liệu cá nhân, thông tin lý lịch nhân thân (Số CCCD, nơi cư trú, thông tin bảo hiểm, thuế TNCN) và Hợp đồng lao động - Chế độ tiền lương được bảo mật tuyệt đối, chỉ có Bộ Phận Nhân Sự (HR) và Tổng Giám Đốc (CEO) được quyền truy cập.
               </span>
             </div>
           </div>

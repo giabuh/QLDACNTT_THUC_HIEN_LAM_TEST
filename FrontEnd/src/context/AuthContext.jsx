@@ -22,7 +22,7 @@ export const ROLES = {
   },
   HR_DIRECTOR: {
     key: 'HR_DIRECTOR',
-    id: 'NV-1001',
+    id: 'NV-0002',
     name: 'Trần Mai Hương',
     title: 'Giám Đốc Nhân Sự (HRD)',
     department: 'Khối Nhân sự và Vận hành',
@@ -40,7 +40,7 @@ export const ROLES = {
   },
   LINE_MANAGER: {
     key: 'LINE_MANAGER',
-    id: 'NV-1002',
+    id: 'NV-1000',
     name: 'Vũ Đình Khang',
     title: 'Trưởng phòng Kỹ thuật Phần mềm',
     department: 'Phòng Phát triển Phần mềm',
