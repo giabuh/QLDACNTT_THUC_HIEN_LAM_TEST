@@ -37,4 +37,15 @@ async function writeAudit(executor, { user, action, table, recordId, oldValues, 
   );
 }
 
-module.exports = { writeAudit };
+/**
+ * Attribute DB-trigger audit rows (e.g. on employees) to `actor` for the rest of this transaction.
+ * Must be called on the transaction client before the write.
+ */
+async function setAuditActor(client, actor) {
+  await client.query("SELECT set_config('app.user_id', $1, true), set_config('app.employee_id', $2, true)", [
+    actor?.userId ?? '',
+    actor?.employeeId ?? '',
+  ]);
+}
+
+module.exports = { writeAudit, setAuditActor };

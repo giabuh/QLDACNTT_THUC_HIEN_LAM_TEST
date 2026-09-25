@@ -3,11 +3,13 @@ const assert = require('node:assert/strict');
 const db = require('../../src/config/db');
 const { call, callWith, loginUser, closeDb } = require('../helpers/api');
 const { createTestUser, deleteTestUsers } = require('../helpers/users');
+const { createTestEmployee, deleteTestEmployees } = require('../helpers/employees');
 
 after(async () => {
   await db.query("DELETE FROM audit_logs WHERE record_id LIKE 'DEPT-TSTAUD%' OR action LIKE 'TEST_AUD%'");
   await db.query("DELETE FROM departments WHERE id LIKE 'DEPT-TSTAUD%'");
   await deleteTestUsers();
+  await deleteTestEmployees();
   await closeDb();
 });
 
@@ -71,4 +73,24 @@ test('secrets are never exposed through the log', async () => {
   const res = await call('CEO', 'get', '/api/audit-logs?limit=200');
   const raw = JSON.stringify(res.body);
   assert.equal(raw.includes('"password_hash":"$2'), false);
+});
+
+test('ADMIN never sees salary or personal data in employee audit rows; CEO does but never face_encoding', async () => {
+  const emp = await createTestEmployee();
+  await db.query("UPDATE employees SET base_salary = 123456, citizen_id = '079123456789', face_encoding = '\\xdeadbeef'::bytea WHERE id = $1", [emp.id]);
+  const find = (res) => res.body.data.filter((r) => r.recordId === emp.id && r.action === 'UPDATE');
+
+  const admin = await createTestUser({ role: 'ADMIN' });
+  const { accessToken } = await loginUser(admin);
+  const asAdmin = find(await callWith(accessToken, 'get', '/api/audit-logs?table=employees&limit=200'));
+  assert.ok(asAdmin.length > 0);
+  for (const r of asAdmin) {
+    assert.equal(r.newValues.base_salary, '[REDACTED]');
+    assert.equal(r.newValues.citizen_id, '[REDACTED]');
+    assert.equal('face_encoding' in r.newValues, false);
+  }
+
+  const asCeo = find(await call('CEO', 'get', '/api/audit-logs?table=employees&limit=200'));
+  assert.ok(asCeo.some((r) => Number(r.newValues.base_salary) === 123456));
+  assert.ok(asCeo.every((r) => !('face_encoding' in r.newValues)));
 });

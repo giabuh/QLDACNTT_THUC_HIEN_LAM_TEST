@@ -14,6 +14,7 @@ async function createTestEmployee({ departmentId = 'DEPT-IT', positionId = null,
 }
 
 async function deleteTestEmployees() {
+  await db.query("DELETE FROM audit_logs WHERE table_name = 'employees' AND record_id LIKE 'NV-T%'");
   await db.query("DELETE FROM users WHERE employee_id LIKE 'NV-T%'");
   await db.query("DELETE FROM employees WHERE id LIKE 'NV-T%'");
 }
