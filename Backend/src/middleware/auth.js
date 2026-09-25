@@ -1,48 +1,56 @@
 // ============================================
-// middleware/auth.js — JWT Authentication + RBAC
+// middleware/auth.js — JWT authentication
 // ============================================
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
+// A KIOSK device account may only scan QR codes and manage its own login.
+const KIOSK_ALLOWED = [
+  ['POST', '/api/attendance/kiosk/punch'],
+  ['GET', '/api/auth/me'],
+  ['POST', '/api/auth/change-password'],
+];
+
+const reject = (res, status, message, code) => res.status(status).json({ success: false, ...(code && { code }), message });
+
 /**
- * Middleware: Xác thực JWT token
- * - Đọc token từ header: Authorization: Bearer <token>
- * - Verify token → gắn req.user = { userId, employeeId, roleCode, email }
- * - Nếu không hợp lệ → 401 Unauthorized
+ * Verify the Bearer token, then load the account so that deactivation, offboarding and role
+ * changes take effect immediately instead of when the token expires.
+ * Sets req.user = { userId, employeeId, roleCode, email } from the database.
  */
-const authenticate = (req, res, next) => {
+const authenticate = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return reject(res, 401, 'Không tìm thấy token xác thực');
+  }
+
+  let decoded;
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Không tìm thấy token xác thực',
-      });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Gắn thông tin user vào request
-    req.user = {
-      userId: decoded.userId,
-      employeeId: decoded.employeeId,
-      roleCode: decoded.roleCode,
-      email: decoded.email,
-    };
-
-    next();
+    decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET);
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token đã hết hạn, vui lòng đăng nhập lại',
-      });
+    return error.name === 'TokenExpiredError'
+      ? reject(res, 401, 'Token đã hết hạn, vui lòng đăng nhập lại')
+      : reject(res, 401, 'Token không hợp lệ');
+  }
+  if (!decoded.userId) return reject(res, 401, 'Token không hợp lệ');
+
+  try {
+    const { rows } = await db.query(
+      'SELECT id, employee_id, role_code, email, is_active FROM users WHERE id = $1', [decoded.userId]);
+    const user = rows[0];
+    if (!user || !user.is_active) return reject(res, 401, 'Tài khoản đã bị vô hiệu hóa', 'ACCOUNT_DISABLED');
+
+    req.user = { userId: user.id, employeeId: user.employee_id, roleCode: user.role_code, email: user.email };
+
+    if (user.role_code === 'KIOSK') {
+      const path = req.originalUrl.split('?')[0].replace(/\/+$/, '');
+      if (!KIOSK_ALLOWED.some(([method, allowed]) => method === req.method && allowed === path)) {
+        return reject(res, 403, 'Tài khoản kiosk chỉ được dùng để chấm công', 'FORBIDDEN');
+      }
     }
-    return res.status(401).json({
-      success: false,
-      message: 'Token không hợp lệ',
-    });
+    return next();
+  } catch (error) {
+    return next(error);
   }
 };
 

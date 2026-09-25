@@ -2,12 +2,15 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { canAssignRole, canManageUserWithRole, generateTemporaryPassword } = require('../../src/modules/users/roleRules');
 
-test('CEO and ADMIN can assign any role', () => {
-  for (const actor of ['CEO', 'ADMIN']) {
-    for (const target of ['CEO', 'ADMIN', 'HR_DIRECTOR', 'LINE_MANAGER', 'EMPLOYEE', 'KIOSK']) {
-      assert.equal(canAssignRole(actor, target), true, `${actor} -> ${target}`);
-    }
+test('CEO can assign any role', () => {
+  for (const target of ['CEO', 'ADMIN', 'HR_DIRECTOR', 'LINE_MANAGER', 'EMPLOYEE', 'KIOSK']) {
+    assert.equal(canAssignRole('CEO', target), true, target);
   }
+});
+
+test('ADMIN (a technical role) can only assign EMPLOYEE, LINE_MANAGER, KIOSK', () => {
+  for (const target of ['EMPLOYEE', 'LINE_MANAGER', 'KIOSK']) assert.equal(canAssignRole('ADMIN', target), true, target);
+  for (const target of ['CEO', 'ADMIN', 'HR_DIRECTOR']) assert.equal(canAssignRole('ADMIN', target), false, target);
 });
 
 test('HR_DIRECTOR can only assign EMPLOYEE, LINE_MANAGER, KIOSK', () => {
@@ -29,6 +32,8 @@ test('HR_DIRECTOR cannot manage CEO or ADMIN accounts but can manage the rest', 
   assert.equal(canManageUserWithRole('HR_DIRECTOR', 'ADMIN'), false);
   assert.equal(canManageUserWithRole('HR_DIRECTOR', 'EMPLOYEE'), true);
   assert.equal(canManageUserWithRole('CEO', 'ADMIN'), true);
+  assert.equal(canManageUserWithRole('ADMIN', 'EMPLOYEE'), true);
+  for (const subject of ['CEO', 'ADMIN', 'HR_DIRECTOR']) assert.equal(canManageUserWithRole('ADMIN', subject), false, subject);
   assert.equal(canManageUserWithRole('EMPLOYEE', 'EMPLOYEE'), false);
 });
 

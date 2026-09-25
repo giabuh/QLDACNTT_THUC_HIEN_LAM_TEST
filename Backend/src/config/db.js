@@ -26,16 +26,21 @@ const getClient = () => pool.connect();
  */
 async function withTransaction(fn) {
   const client = await pool.connect();
+  let releaseError;
   try {
     await client.query('BEGIN');
     const result = await fn(client);
     await client.query('COMMIT');
     return result;
   } catch (err) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      releaseError = rollbackErr; // the connection is unusable: let the pool discard it
+    }
     throw err;
   } finally {
-    client.release();
+    client.release(releaseError);
   }
 }
 

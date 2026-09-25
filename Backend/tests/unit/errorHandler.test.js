@@ -64,6 +64,14 @@ test('Postgres check violation and invalid text representation map to 400', () =
   assert.equal(run(Object.assign(new Error('uuid'), { code: '22P02' })).status, 400);
 });
 
+test('deadlock and serialization failures map to a retryable 409', () => {
+  for (const code of ['40P01', '40001']) {
+    const out = run(Object.assign(new Error('deadlock'), { code }));
+    assert.equal(out.status, 409);
+    assert.equal(out.body.code, 'RETRY');
+  }
+});
+
 test('unknown errors map to 500 without leaking the message', () => {
   const spy = mock.method(console, 'error', () => {});
   const out = run(new Error('secret db password leaked'));

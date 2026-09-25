@@ -8,6 +8,10 @@ info:
     `{ success: false, code, message, details? }`. Messages are Vietnamese.
     Send `Authorization: Bearer <accessToken>` on every endpoint except login, refresh, logout and health.
     Access tokens are short-lived; use POST /auth/refresh with the refresh token to get a new pair.
+    Every request re-checks the account in the database, so deactivation, offboarding and role changes apply
+    immediately (401 `ACCOUNT_DISABLED` / 403). KIOSK accounts can only call POST /attendance/kiosk/punch,
+    GET /auth/me and POST /auth/change-password.
+    DATE fields are `YYYY-MM-DD` strings; timestamps are ISO 8601 (UTC). The company time zone is Asia/Ho_Chi_Minh.
 servers:
   - url: http://localhost:8000/api
 security:
@@ -184,7 +188,7 @@ paths:
       tags: [users]
       summary: Create an account
       description: >
-        CEO and ADMIN may assign any role; HR_DIRECTOR only EMPLOYEE, LINE_MANAGER, KIOSK.
+        CEO may assign any role; HR_DIRECTOR and ADMIN only EMPLOYEE, LINE_MANAGER, KIOSK.
         Without `password` a temporary password is generated and returned once as `temporaryPassword`.
         The account must change its password at first login. `employeeId` is optional only for KIOSK and ADMIN.
       requestBody:
@@ -235,7 +239,9 @@ paths:
     patch:
       tags: [users]
       summary: Change role or active flag
-      description: Nobody can change their own role or deactivate themselves. Deactivating revokes all refresh tokens. HR_DIRECTOR cannot manage CEO/ADMIN accounts.
+      description: >
+        Nobody can change their own role or deactivate themselves. Any activation change revokes all refresh tokens.
+        HR_DIRECTOR cannot manage CEO/ADMIN accounts; ADMIN can only manage EMPLOYEE, LINE_MANAGER and KIOSK accounts.
       parameters:
         - { $ref: '#/components/parameters/userId' }
       requestBody:
@@ -557,6 +563,7 @@ paths:
     get:
       tags: [departments]
       summary: List active departments with head count
+      description: `budget_yearly` is included only for CEO and HR_DIRECTOR.
       responses:
         '200':
           description: Departments
@@ -588,6 +595,7 @@ paths:
     get:
       tags: [departments]
       summary: Get one department
+      description: `budget_yearly` is included only for CEO and HR_DIRECTOR.
       parameters:
         - { $ref: '#/components/parameters/deptId' }
       responses:
@@ -715,7 +723,9 @@ paths:
     get:
       tags: [audit]
       summary: System audit trail, newest first
-      description: Roles CEO and ADMIN. `from` is inclusive, `to` is exclusive. Secrets are redacted at write time.
+      description: >
+        Roles CEO and ADMIN. `from` is inclusive, `to` is exclusive. Passwords, token hashes and face data are never
+        stored. Salary and personal data are stored as written but redacted when ADMIN reads the log.
       parameters:
         - { name: table, in: query, schema: { type: string } }
         - { name: action, in: query, schema: { type: string } }

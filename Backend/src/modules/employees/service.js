@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const db = require('../../config/db');
 const { AppError, badRequest, forbidden, notFound, conflict } = require('../../utils/AppError');
 const { parsePagination, paginationMeta } = require('../../utils/pagination');
@@ -113,7 +114,7 @@ async function nextEmployeeId(client) {
 }
 
 /** Insert one employee plus its initial active contract. Runs on the caller's transaction client. */
-async function insertEmployee(client, body) {
+async function insertEmployee(client, body, { dry = false } = {}) {
   await assertReferences(client, body);
   await assertEmailFree(client, body.workEmail);
 
@@ -122,7 +123,8 @@ async function insertEmployee(client, body) {
     const taken = await client.query('SELECT 1 FROM employees WHERE id = $1', [id]);
     if (taken.rows.length > 0) throw conflict(`Mã nhân viên ${id} đã tồn tại`);
   } else {
-    id = await nextEmployeeId(client);
+    // A dry run must not burn sequence values, so it uses throw-away ids.
+    id = dry ? `NV-DRY-${crypto.randomBytes(4).toString('hex')}` : await nextEmployeeId(client);
   }
 
   const salary = body.baseSalary ?? 0;
@@ -138,9 +140,9 @@ async function insertEmployee(client, body) {
       body.avatarUrl ?? null, body.bankAccount ?? null, body.bankName ?? null]
   );
   await client.query(
-    `INSERT INTO contracts (employee_id, contract_no, type, start_date, salary, status)
-     VALUES ($1, $2, $3, $4, $5, 'HIEU_LUC')`,
-    [id, `HDLD-${id}`, contractType, body.joinedDate, salary]
+    `INSERT INTO contracts (id, employee_id, contract_no, type, start_date, salary, status)
+     VALUES (COALESCE($1, 'CT-' || LPAD(nextval('seq_contract_id')::TEXT, 5, '0')), $2, $3, $4, $5, $6, 'HIEU_LUC')`,
+    [dry ? `CT-DRY-${crypto.randomBytes(4).toString('hex')}` : null, id, `HDLD-${id}`, contractType, body.joinedDate, salary]
   );
   return id;
 }

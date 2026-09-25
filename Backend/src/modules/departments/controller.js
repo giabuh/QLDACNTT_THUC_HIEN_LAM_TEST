@@ -1,8 +1,9 @@
 const asyncHandler = require('../../utils/asyncHandler');
 const service = require('./service');
+const { shapeDepartment } = require('./access');
 
 const get = asyncHandler(async (req, res) => {
-  res.json({ success: true, data: await service.get(req.params.id) });
+  res.json({ success: true, data: shapeDepartment(await service.get(req.params.id), req.user) });
 });
 
 const create = asyncHandler(async (req, res) => {

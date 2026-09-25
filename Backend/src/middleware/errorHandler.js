@@ -24,6 +24,9 @@ function toResponse(err) {
   }
   if (err && err.type === 'entity.parse.failed') return fail(400, 'INVALID_JSON', 'Body JSON không hợp lệ');
   if (err && err.type === 'entity.too.large') return fail(413, 'PAYLOAD_TOO_LARGE', 'Dữ liệu gửi lên quá lớn');
+  if (err && (err.code === '40P01' || err.code === '40001')) {
+    return fail(409, 'RETRY', 'Hệ thống đang bận, vui lòng thử lại');
+  }
   if (err && err.code === '23505') return fail(409, 'CONFLICT', 'Dữ liệu đã tồn tại');
   if (err && err.code === '23503') return fail(409, 'REFERENCE_ERROR', 'Dữ liệu tham chiếu không hợp lệ');
   if (err && (err.code === '23514' || err.code === '22P02')) {

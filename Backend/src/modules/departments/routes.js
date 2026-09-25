@@ -7,6 +7,7 @@ const { authenticate } = require('../../middleware/auth');
 const { validate } = require('../../middleware/validate');
 const { requirePermission } = require('../../policies');
 const controller = require('./controller');
+const { shapeDepartment } = require('./access');
 const { idParam, createBody, updateBody } = require('./schema');
 
 const router = express.Router();
@@ -33,7 +34,7 @@ router.get('/', authenticate, async (req, res) => {
       ORDER BY d.name
     `);
 
-    return res.json({ success: true, data: rows });
+    return res.json({ success: true, data: rows.map((r) => shapeDepartment(r, req.user)) });
   } catch (error) {
     console.error('❌ Get departments error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi hệ thống' });

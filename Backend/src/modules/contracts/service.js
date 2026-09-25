@@ -88,8 +88,11 @@ async function create(actor, employeeId, body, req) {
 async function update(actor, id, body, req) {
   return db.withTransaction(async (client) => {
     await setAuditActor(client, actor);
+    // Lock order is always employee first, then contract (same as create/activate) to avoid deadlocks.
+    const pre = await findContract(client, id);
+    if (!pre) throw notFound('Không tìm thấy hợp đồng');
+    await lockEmployee(client, pre.employee_id);
     const before = await findContract(client, id, { lock: true });
-    if (!before) throw notFound('Không tìm thấy hợp đồng');
     if (!['CHO_KY', 'HIEU_LUC'].includes(before.status)) throw conflict('Hợp đồng đã kết thúc, không thể chỉnh sửa');
     if (body.endDate && body.endDate < before.start_date) throw badRequest('Ngày kết thúc không được trước ngày bắt đầu');
 
@@ -104,7 +107,6 @@ async function update(actor, id, body, req) {
     }
     await client.query(`UPDATE contracts SET ${sets.join(', ')} WHERE id = $1`, params);
     if (before.status === 'HIEU_LUC' && body.salary !== undefined) {
-      await lockEmployee(client, before.employee_id);
       await syncEmployee(client, before.employee_id, body.salary, before.type);
     }
     await writeAudit(client, {

@@ -64,6 +64,7 @@ function describeFailure(err) {
  */
 async function importEmployees(actor, rows, dryRun) {
   const client = await db.getClient();
+  let releaseError;
   const failed = [];
   const createdIds = [];
   try {
@@ -79,10 +80,11 @@ async function importEmployees(actor, rows, dryRun) {
       }
       await client.query('SAVEPOINT import_row');
       try {
-        createdIds.push(await insertEmployee(client, parsed.data));
+        createdIds.push(await insertEmployee(client, parsed.data, { dry: Boolean(dryRun) }));
         await client.query('RELEASE SAVEPOINT import_row');
       } catch (err) {
         await client.query('ROLLBACK TO SAVEPOINT import_row');
+        await client.query('RELEASE SAVEPOINT import_row');
         const info = describeFailure(err);
         if (!info) throw err;
         failed.push({ row: i + 1, ...info });
@@ -90,10 +92,14 @@ async function importEmployees(actor, rows, dryRun) {
     }
     await client.query(dryRun ? 'ROLLBACK' : 'COMMIT');
   } catch (err) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      releaseError = rollbackErr;
+    }
     throw err;
   } finally {
-    client.release();
+    client.release(releaseError);
   }
   return { dryRun: Boolean(dryRun), created: createdIds.length, createdIds: dryRun ? [] : createdIds, failed };
 }
