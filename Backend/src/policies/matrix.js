@@ -43,6 +43,8 @@ const matrix = {
   'position.manage': { CEO: ALL, HR_DIRECTOR: ALL },
   'audit.read': { CEO: ALL, ADMIN: ALL },
   'project.read': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
+  'squad.read': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
+  'squad.create': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
   'project.create': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
 };
 
