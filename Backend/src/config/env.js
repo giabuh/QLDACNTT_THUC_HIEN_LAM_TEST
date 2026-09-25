@@ -13,7 +13,13 @@ const defaultOrigins = [3000, 3001, 3002, 3003, 3004, 3005, 5173].flatMap((port)
   `http://127.0.0.1:${port}`,
 ]);
 
+const timezone = process.env.APP_TIMEZONE || 'Asia/Ho_Chi_Minh';
+if (!/^[A-Za-z0-9_+\-/]+$/.test(timezone)) throw new Error(`Invalid APP_TIMEZONE "${timezone}"`);
+
 const config = {
+  timezone,
+  // Minimum seconds between the kiosk check-in and check-out scan of the same person (prevents double scans).
+  punchMinGapSeconds: parseInt(process.env.PUNCH_MIN_GAP_SECONDS || '60', 10),
   env: process.env.NODE_ENV || 'development',
   isTest,
   port: parseInt(process.env.PORT || '8000', 10),

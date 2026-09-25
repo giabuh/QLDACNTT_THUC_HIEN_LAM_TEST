@@ -7,6 +7,8 @@ types.setTypeParser(types.builtins.DATE, (value) => value);
 
 const pool = new Pool({
   ...config.db,
+  // Company time zone for every connection: CURRENT_DATE, the 08:00 late threshold and month boundaries.
+  options: `-c timezone=${config.timezone}`,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

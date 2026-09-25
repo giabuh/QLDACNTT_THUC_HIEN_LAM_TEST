@@ -5,6 +5,11 @@ const DEPT = 'department';
 const ADMINS = { CEO: ALL, HR_DIRECTOR: ALL, ADMIN: ALL };
 
 const matrix = {
+  'attendance.punch': { CEO: 'self', HR_DIRECTOR: 'self', LINE_MANAGER: 'self', EMPLOYEE: 'self' },
+  'attendance.read': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
+  'attendance.report': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
+  'attendance.kiosk': { KIOSK: ALL, HR_DIRECTOR: ALL, CEO: ALL },
+  'attendance.adjust': { CEO: ALL, HR_DIRECTOR: ALL },
   'contract.read': { CEO: ALL, HR_DIRECTOR: ALL, EMPLOYEE: 'self' },
   'contract.manage': { CEO: ALL, HR_DIRECTOR: ALL },
   'employee.list': { CEO: ALL, HR_DIRECTOR: ALL, ADMIN: ALL, LINE_MANAGER: DEPT, EMPLOYEE: ALL },
