@@ -26,7 +26,7 @@ const config = {
   },
   jwt: {
     secret: process.env.JWT_SECRET,
-    expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    expiresIn: process.env.JWT_EXPIRES_IN || '30m',
   },
   trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   corsOrigins: [

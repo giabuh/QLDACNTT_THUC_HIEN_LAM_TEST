@@ -3,9 +3,12 @@
 // ============================================
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const db = require('../../config/db');
 const { authenticate } = require('../../middleware/auth');
+const { validate } = require('../../middleware/validate');
+const tokens = require('./tokens');
+const session = require('./session.controller');
+const { refreshBody, changePasswordBody } = require('./schema');
 
 const router = express.Router();
 
@@ -35,6 +38,7 @@ router.post('/login', async (req, res) => {
         u.role_code,
         u.is_active,
         u.failed_login_attempts,
+        u.must_change_password,
         u.locked_until,
         e.id AS employee_id,
         e.full_name,
@@ -112,23 +116,19 @@ router.post('/login', async (req, res) => {
       [user.user_id]
     );
 
-    // 7. Tạo JWT token
-    const tokenPayload = {
-      userId: user.user_id,
-      employeeId: user.employee_id,
-      roleCode: user.role_code,
-      email: user.email,
-    };
-
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '24h',
-    });
+    // 7. Tạo access token + refresh token
+    const accessToken = tokens.signAccessToken(user);
+    const { token: refreshToken } = await tokens.issueRefreshToken(db, user.user_id, req);
 
     // 8. Trả response (KHÔNG bao giờ trả password_hash)
     return res.json({
       success: true,
       message: 'Đăng nhập thành công',
-      token,
+      token: accessToken, // legacy field, same as accessToken
+      accessToken,
+      refreshToken,
+      expiresIn: tokens.expiresInSeconds(accessToken),
+      mustChangePassword: user.must_change_password,
       user: {
         id: user.user_id,
         employeeId: user.employee_id,
@@ -234,62 +234,8 @@ router.get('/me', authenticate, async (req, res) => {
   }
 });
 
-/**
- * POST /api/auth/change-password
- * Body: { currentPassword, newPassword }
- */
-router.post('/change-password', authenticate, async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới',
-      });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mật khẩu mới phải có ít nhất 6 ký tự',
-      });
-    }
-
-    // Lấy password hash hiện tại
-    const { rows } = await db.query(
-      'SELECT password_hash FROM users WHERE id = $1',
-      [req.user.userId]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
-    }
-
-    // Kiểm tra password cũ
-    const isValid = await bcrypt.compare(currentPassword, rows[0].password_hash);
-    if (!isValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Mật khẩu hiện tại không chính xác',
-      });
-    }
-
-    // Hash password mới và update
-    const newHash = await bcrypt.hash(newPassword, 10);
-    await db.query(
-      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-      [newHash, req.user.userId]
-    );
-
-    return res.json({
-      success: true,
-      message: 'Đổi mật khẩu thành công',
-    });
-  } catch (error) {
-    console.error('❌ Change password error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi hệ thống' });
-  }
-});
+router.post('/refresh', validate({ body: refreshBody }), session.refresh);
+router.post('/logout', validate({ body: refreshBody }), session.logout);
+router.post('/change-password', authenticate, validate({ body: changePasswordBody }), session.changePassword);
 
 module.exports = router;

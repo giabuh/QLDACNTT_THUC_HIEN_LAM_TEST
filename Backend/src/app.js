@@ -31,6 +31,7 @@ if (config.env === 'development') {
 
 // Routes
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/refresh', authLimiter);
 app.use('/api/auth', require('./modules/auth/routes'));
 app.use('/api/employees', require('./modules/employees/routes'));
 app.use('/api/departments', require('./modules/departments/routes'));
