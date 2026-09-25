@@ -10,7 +10,8 @@
     "db:test": "node scripts/test-db.js",
     "test:smoke": "node scripts/smoke-test.js",
     "test:unit": "node --require ./tests/helpers/env.js --test \"tests/unit/**/*.test.js\"",
-    "test": "node scripts/test-setup.js && node --require ./tests/helpers/env.js --test --test-concurrency=1 \"tests/**/*.test.js\""
+    "test": "node scripts/test-setup.js && node --require ./tests/helpers/env.js --test --test-concurrency=1 \"tests/**/*.test.js\"",
+    "seed:demo": "node scripts/seed-demo.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
