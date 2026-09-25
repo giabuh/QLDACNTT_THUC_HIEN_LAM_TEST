@@ -1,7 +1,7 @@
 const db = require('../../config/db');
 const { AppError, forbidden, notFound } = require('../../utils/AppError');
 const { writeAudit } = require('../../utils/audit');
-const { visibilityPredicate, canManageProject, departmentOf } = require('./access');
+const { visibilityPredicate, canManageProject, departmentOf, HR_ROLES } = require('./access');
 
 const LIST_SQL = `
   SELECT p.*, d.name AS department_name, m.full_name AS manager_name, m.avatar_url AS manager_avatar,
@@ -81,7 +81,15 @@ async function update(actor, id, body, req) {
     const before = await findProject(client, id);
     if (!before) throw notFound('Không tìm thấy dự án');
     if (!(await canManageProject(client, actor, before))) throw forbidden('Bạn không có quyền sửa dự án này');
-    if (body.departmentId) await assertExists(client, 'departments', body.departmentId, 'Không tìm thấy phòng ban');
+    if (body.departmentId) {
+      await assertExists(client, 'departments', body.departmentId, 'Không tìm thấy phòng ban');
+      if (body.departmentId !== before.department_id && !HR_ROLES.includes(actor.roleCode)) {
+        const mine = await departmentOf(client, actor.employeeId);
+        if (actor.roleCode !== 'LINE_MANAGER' || mine !== body.departmentId) {
+          throw forbidden('Bạn chỉ chuyển được dự án sang phòng ban do mình phụ trách');
+        }
+      }
+    }
     if (body.managerId) await assertExists(client, 'employees', body.managerId, 'Không tìm thấy quản lý dự án');
 
     const sets = [];

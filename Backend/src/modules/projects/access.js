@@ -9,7 +9,7 @@ async function departmentOf(executor, employeeId) {
 /**
  * SQL predicate (on alias `p` = projects) limiting which projects `user` may see; pushes its parameters.
  *  - CEO / HR_DIRECTOR: everything (null)
- *  - LINE_MANAGER: their department's projects and those they manage
+ *  - LINE_MANAGER: their department's projects plus the same participation rule as everyone else
  *  - everyone else: projects they manage, have a task in, or belong to through a squad
  */
 async function visibilityPredicate(executor, user, params) {
@@ -17,18 +17,18 @@ async function visibilityPredicate(executor, user, params) {
   const emp = user.employeeId ?? '';
   params.push(emp);
   const e = `$${params.length}`;
+  const participation = `(p.manager_id = ${e}
+    OR EXISTS (SELECT 1 FROM tasks t WHERE t.project_id = p.id AND (t.assignee_id = ${e} OR t.creator_id = ${e}))
+    OR EXISTS (SELECT 1 FROM squads s WHERE s.project_id = p.id
+                AND (s.lead_id = ${e} OR EXISTS (SELECT 1 FROM squad_members sm WHERE sm.squad_id = s.id AND sm.employee_id = ${e}))))`;
   if (user.roleCode === 'LINE_MANAGER') {
     const dept = await departmentOf(executor, user.employeeId);
     if (dept) {
       params.push(dept);
-      return `(p.department_id = $${params.length} OR p.manager_id = ${e})`;
+      return `(p.department_id = $${params.length} OR ${participation})`;
     }
-    return `p.manager_id = ${e}`;
   }
-  return `(p.manager_id = ${e}
-    OR EXISTS (SELECT 1 FROM tasks t WHERE t.project_id = p.id AND (t.assignee_id = ${e} OR t.creator_id = ${e}))
-    OR EXISTS (SELECT 1 FROM squads s WHERE s.project_id = p.id
-                AND (s.lead_id = ${e} OR EXISTS (SELECT 1 FROM squad_members sm WHERE sm.squad_id = s.id AND sm.employee_id = ${e}))))`;
+  return participation;
 }
 
 async function canSeeProject(executor, user, projectId) {

@@ -24,8 +24,8 @@ const METRICS_SQL = `
                          FROM attendance_logs a WHERE a.employee_id = e.id AND a.work_date > CURRENT_DATE - 60) ot ON TRUE
     LEFT JOIN LATERAL (SELECT GREATEST(e.joined_date, COALESCE(MAX(c.start_date), e.joined_date)) AS d
                          FROM contracts c WHERE c.employee_id = e.id AND c.status <> 'CHO_KY') changed ON TRUE
-    LEFT JOIN LATERAL (SELECT (array_agg(r.performance_score ORDER BY r.period DESC))[1] AS latest,
-                              (array_agg(r.performance_score ORDER BY r.period DESC))[2] AS previous
+    LEFT JOIN LATERAL (SELECT (array_agg(r.performance_score ORDER BY (substring(r.period, 1, 4)::int * 100 + CASE substring(r.period FROM 6) WHEN 'Q1' THEN 3 WHEN 'Q2' THEN 6 WHEN 'Q3' THEN 9 WHEN 'H1' THEN 6 ELSE 12 END) DESC, r.period DESC))[1] AS latest,
+                              (array_agg(r.performance_score ORDER BY (substring(r.period, 1, 4)::int * 100 + CASE substring(r.period FROM 6) WHEN 'Q1' THEN 3 WHEN 'Q2' THEN 6 WHEN 'Q3' THEN 9 WHEN 'H1' THEN 6 ELSE 12 END) DESC, r.period DESC))[2] AS previous
                          FROM performance_reviews r WHERE r.employee_id = e.id) rv ON TRUE
     LEFT JOIN LATERAL (SELECT COUNT(*) AS n FROM attendance_logs a WHERE a.employee_id = e.id AND a.status = 'VANG_KHONG_PHEP'
                           AND a.work_date > CURRENT_DATE - 60) ab ON TRUE
@@ -48,6 +48,7 @@ function toRisk(r) {
 async function scoreScope(user, scope) {
   const params = [];
   const where = ["e.status IN ('DANG_LAM_VIEC', 'THU_VIEC')"];
+  if (scope !== 'all' && scope !== 'department') throw new Error(`Unknown scope "${scope}"`);
   if (scope === 'department') {
     const dept = await departmentOf(db, user.employeeId);
     if (!dept) return [];

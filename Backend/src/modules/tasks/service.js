@@ -128,7 +128,10 @@ async function update(actor, id, body, req) {
     const fullEdit = rights.managerSide || rights.isCreator;
     const workingEdit = rights.isAssignee && keys.every((k) => ASSIGNEE_FIELDS.has(k));
     if (!fullEdit && !workingEdit) throw forbidden('Bạn không có quyền sửa nhiệm vụ này');
-    if (body.assigneeId) await assertEmployee(client, body.assigneeId);
+    if (body.assigneeId && body.assigneeId !== task.assignee_id) {
+      if (!rights.managerSide) throw forbidden('Chỉ quản lý dự án mới được giao việc cho người khác');
+      await assertEmployee(client, body.assigneeId);
+    }
 
     const sets = [];
     const params = [id];
@@ -179,7 +182,7 @@ async function moveTask(actor, id, toStage, note, req) {
     } else if (toStage === 'review') {
       sets.push('reviewed_by = NULL', 'reviewed_at = NULL');
     }
-    if (task.stage === 'done') sets.push(toStage === 'todo' ? 'progress = 0' : 'progress = LEAST(progress, 90)');
+    if (task.stage === 'done') sets.push(toStage === 'todo' ? 'progress = 0' : 'progress = LEAST(progress, 90)', 'reviewed_by = NULL', 'reviewed_at = NULL');
     await client.query(`UPDATE tasks SET ${sets.join(', ')} WHERE id = $1`, params);
 
     if (kind === 'review') {

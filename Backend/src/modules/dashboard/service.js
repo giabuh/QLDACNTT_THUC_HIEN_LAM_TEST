@@ -3,9 +3,19 @@ const { departmentOf } = require('../projects/access');
 
 const n = async (sql, params = []) => (await db.query(sql, params)).rows[0].n;
 
+const EMPTY = (scope) => ({
+  scope,
+  overview: {
+    total_active: 0, total_inactive: 0, present_today: 0, late_today: 0, pending_leaves: 0, active_projects: 0, open_tasks: 0, last_refreshed: new Date(),
+  },
+  departmentStats: [],
+  pendingLeaves: [],
+});
+
 async function companyOrDepartment(user, scope) {
   const dept = scope === 'department' ? await departmentOf(db, user.employeeId) : null;
-  // In department mode a manager without a department sees empty numbers rather than the whole company.
+  // A manager without a department manages nobody: show nothing rather than everyone who has no department either.
+  if (scope === 'department' && !dept) return EMPTY('department');
   const deptSql = scope === 'department' ? 'AND e.department_id IS NOT DISTINCT FROM $1' : '';
   const p = scope === 'department' ? [dept] : [];
   const emp = (extra) => `SELECT COUNT(*)::int AS n FROM employees e WHERE ${extra} ${deptSql}`;
@@ -69,7 +79,9 @@ async function personal(user) {
 }
 
 async function get(user, scope) {
-  return scope === 'self' ? personal(user) : companyOrDepartment(user, scope);
+  if (scope === 'self') return personal(user);
+  if (scope === 'all' || scope === 'department') return companyOrDepartment(user, scope);
+  throw new Error(`Unknown dashboard scope "${scope}"`);
 }
 
 module.exports = { get };

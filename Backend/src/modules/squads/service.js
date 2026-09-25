@@ -116,7 +116,12 @@ async function update(actor, id, body, req) {
     const before = await findSquad(client, id, { lock: true });
     if (!before) throw notFound('Không tìm thấy nhóm');
     if (!(await canManage(client, actor, before))) throw forbidden('Bạn không có quyền sửa nhóm này');
-    if (body.projectId) await assertExists(client, 'projects', body.projectId, 'Không tìm thấy dự án');
+    if (body.projectId && body.projectId !== before.project_id) {
+      // Attaching a squad to a project grants its members access to it, so the actor must manage that project.
+      const target = (await client.query('SELECT id, manager_id, department_id FROM projects WHERE id = $1', [body.projectId])).rows[0];
+      if (!target) throw notFound('Không tìm thấy dự án');
+      if (!(await canManageProject(client, actor, target))) throw forbidden('Bạn không có quyền gắn nhóm vào dự án này');
+    }
     if (body.leadId) await assertExists(client, 'employees', body.leadId, 'Không tìm thấy trưởng nhóm');
 
     const sets = [];

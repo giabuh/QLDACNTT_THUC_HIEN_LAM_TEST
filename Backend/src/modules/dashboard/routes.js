@@ -16,7 +16,7 @@ router.get('/stats', authenticate, requirePermission('dashboard.read'), asyncHan
 }));
 
 /** GET /api/dashboard/notifications — legacy alias of GET /api/notifications (latest 30, with unreadCount). */
-router.get('/notifications', authenticate, asyncHandler(async (req, res) => {
+router.get('/notifications', authenticate, requirePermission('notification.read'), asyncHandler(async (req, res) => {
   const { data, unreadCount } = await notifications.list(req.user, { limit: '30' });
   res.json({ success: true, data, unreadCount });
 }));

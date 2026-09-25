@@ -1716,7 +1716,7 @@ paths:
     put:
       tags: [squads]
       summary: "Update a squad"
-      description: "Lead, project manager, department manager, HR and CEO. Changing the lead adds the new lead as a member."
+      description: "Lead, project manager, department manager, HR and CEO. Changing the lead adds the new lead as a member. Attaching the squad to another project requires managing that project (403 otherwise), because squad members gain access to their project."
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, example: "SQ-100" } }
       requestBody:

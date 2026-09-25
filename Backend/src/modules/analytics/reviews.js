@@ -89,7 +89,7 @@ async function remove(actor, id, req) {
 
 async function resolvePeriod(period) {
   if (period) return period;
-  const { rows } = await db.query('SELECT period FROM performance_reviews ORDER BY period DESC LIMIT 1');
+  const { rows } = await db.query("SELECT r.period FROM performance_reviews r ORDER BY (substring(r.period, 1, 4)::int * 100 + CASE substring(r.period FROM 6) WHEN 'Q1' THEN 3 WHEN 'Q2' THEN 6 WHEN 'Q3' THEN 9 WHEN 'H1' THEN 6 ELSE 12 END) DESC, r.period DESC LIMIT 1");
   return rows[0]?.period ?? null;
 }
 
