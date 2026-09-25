@@ -44,6 +44,8 @@ app.use('/api/leaves', require('./modules/leaves/routes'));
 app.use('/api/ot-requests', require('./modules/ot/routes'));
 app.use('/api/medical-claims', require('./modules/medical/routes'));
 app.use('/api/payroll', require('./modules/payroll/routes'));
+app.use('/api/notices', require('./modules/notices/routes'));
+app.use('/api/handbook', require('./modules/handbook/routes'));
 app.use('/api/notifications', require('./modules/notifications/routes'));
 app.use('/api/squads', require('./modules/squads/routes'));
 app.use('/api/tasks', require('./modules/tasks/routes'));
