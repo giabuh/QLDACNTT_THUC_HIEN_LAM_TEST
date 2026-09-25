@@ -5,6 +5,7 @@ const { writeAudit } = require('../../utils/audit');
 const { scopeCondition } = require('../../utils/scope');
 const { initialStage, decide, workingDays } = require('../approvals/chain');
 const workflow = require('../approvals/workflow');
+const { notifySubmitted, notifyDecided } = require('../approvals/notify');
 
 const ACTIVE_STAGES = ['CHO_TRUONG_PHONG_DUYET', 'CHO_HR_PHE_CHUAN', 'DA_PHE_DUYET'];
 
@@ -98,7 +99,10 @@ async function create(user, body, req) {
       user, action: 'CREATE_LEAVE', table: 'leave_requests', recordId: id, req,
       newValues: { employee_id: employeeId, leave_type_id: body.leaveTypeId, start_date: body.startDate, end_date: body.endDate, total_days: totalDays, stage: autoApprove ? 'DA_PHE_DUYET' : stage },
     });
-    return { row: await findDetail(client, id), autoApproved: autoApprove };
+    const created = await findDetail(client, id);
+    await notifySubmitted(client, 'leave_requests', created,
+      `${created.full_name} xin nghỉ ${totalDays} ngày (${body.startDate} → ${body.endDate}): ${body.reason}`);
+    return { row: created, autoApproved: autoApprove };
   });
 }
 
@@ -222,6 +226,7 @@ async function decideOn(actor, id, action, note, req) {
       user: actor, action: action === 'reject' ? 'REJECT_LEAVE' : 'APPROVE_LEAVE', table: 'leave_requests', recordId: id, req,
       oldValues: { stage: leave.stage }, newValues: { stage: row.stage, note: note ?? null },
     });
+    await notifyDecided(client, 'leave_requests', row, action === 'reject' ? 'rejected' : row.stage === 'DA_PHE_DUYET' ? 'approved' : 'advanced', actor, note);
     return row;
   });
 }

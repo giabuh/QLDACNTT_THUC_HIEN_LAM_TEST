@@ -45,6 +45,8 @@ const matrix = {
   'project.read': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
   'squad.read': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
   'squad.create': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
+  'notification.read': { CEO: 'self', HR_DIRECTOR: 'self', LINE_MANAGER: 'self', EMPLOYEE: 'self', ADMIN: 'self' },
+  'notification.create': { CEO: ALL, HR_DIRECTOR: ALL },
   'project.create': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
 };
 

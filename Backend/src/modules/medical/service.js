@@ -3,6 +3,7 @@ const { AppError, badRequest, forbidden, notFound } = require('../../utils/AppEr
 const { writeAudit } = require('../../utils/audit');
 const { initialStage } = require('../approvals/chain');
 const { createApprovalService } = require('../approvals/service');
+const { notifySubmitted } = require('../approvals/notify');
 
 const SICK_LEAVE_TYPE = 'LT-SL';
 
@@ -51,7 +52,10 @@ async function create(user, body, req) {
       user, action: 'CREATE_CLAIM', table: 'medical_claims', recordId: id, req,
       newValues: { employee_id: user.employeeId, claim_date: body.claimDate, amount: body.amount, stage: autoApprove ? 'DA_PHE_DUYET' : stage },
     });
-    return { row: await shared.findDetail(client, id), autoApproved: autoApprove };
+    const created = await shared.findDetail(client, id);
+    await notifySubmitted(client, 'medical_claims', created,
+      `${created.full_name} đề nghị bồi thường ${body.amount} đồng (${body.description})`);
+    return { row: created, autoApproved: autoApprove };
   });
 }
 

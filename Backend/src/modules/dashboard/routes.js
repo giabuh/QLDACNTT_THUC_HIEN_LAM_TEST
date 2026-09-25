@@ -4,6 +4,7 @@
 const express = require('express');
 const db = require('../../config/db');
 const { authenticate } = require('../../middleware/auth');
+const notifications = require('../notifications/service');
 
 const router = express.Router();
 
@@ -55,24 +56,14 @@ router.get('/stats', authenticate, async (req, res) => {
 
 /**
  * GET /api/dashboard/notifications
- * Thông báo theo vai trò
+ * Legacy alias of GET /api/notifications (latest 30, with unreadCount).
  */
-router.get('/notifications', authenticate, async (req, res) => {
+router.get('/notifications', authenticate, async (req, res, next) => {
   try {
-    const { rows } = await db.query(`
-      SELECT * FROM notifications
-      WHERE user_id = (SELECT id FROM users WHERE employee_id = $1 LIMIT 1)
-         OR role_target = $2
-      ORDER BY created_at DESC
-      LIMIT 30
-    `, [req.user.employeeId, req.user.roleCode]);
-
-    const unreadCount = rows.filter(n => !n.is_read).length;
-
-    return res.json({ success: true, data: rows, unreadCount });
+    const { data, unreadCount } = await notifications.list(req.user, { limit: '30' });
+    return res.json({ success: true, data, unreadCount });
   } catch (error) {
-    console.error('❌ Get notifications error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi hệ thống' });
+    return next(error);
   }
 });
 

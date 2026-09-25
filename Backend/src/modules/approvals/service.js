@@ -5,6 +5,7 @@ const { writeAudit } = require('../../utils/audit');
 const { scopeCondition } = require('../../utils/scope');
 const { decide } = require('./chain');
 const workflow = require('./workflow');
+const { notifyDecided } = require('./notify');
 
 /**
  * Read/decide/cancel operations shared by requests that follow the approval chain
@@ -91,6 +92,7 @@ function createApprovalService({ table, dateColumn, notFoundMessage, audit, canc
         user: actor, action: action === 'reject' ? audit.reject : audit.approve, table, recordId: id, req,
         oldValues: { stage: row.stage }, newValues: { stage: detail.stage, note: note ?? null },
       });
+      await notifyDecided(client, table, detail, action === 'reject' ? 'rejected' : detail.stage === 'DA_PHE_DUYET' ? 'approved' : 'advanced', actor, note);
       return detail;
     });
   }

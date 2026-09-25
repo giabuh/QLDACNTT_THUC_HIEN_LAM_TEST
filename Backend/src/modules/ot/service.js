@@ -3,6 +3,7 @@ const { AppError, forbidden } = require('../../utils/AppError');
 const { writeAudit } = require('../../utils/audit');
 const { initialStage } = require('../approvals/chain');
 const { createApprovalService } = require('../approvals/service');
+const { notifySubmitted } = require('../approvals/notify');
 const { minutes } = require('./schema');
 
 const ACTIVE = ['CHO_TRUONG_PHONG_DUYET', 'CHO_HR_PHE_CHUAN', 'DA_PHE_DUYET'];
@@ -62,7 +63,10 @@ async function create(user, body, req) {
       user, action: 'CREATE_OT', table: 'ot_requests', recordId: id, req,
       newValues: { employee_id: user.employeeId, work_date: body.workDate, hours, stage: autoApprove ? 'DA_PHE_DUYET' : stage },
     });
-    return { row: await shared.findDetail(client, id), autoApproved: autoApprove };
+    const created = await shared.findDetail(client, id);
+    await notifySubmitted(client, 'ot_requests', created,
+      `${created.full_name} đăng ký làm thêm ${hours} giờ ngày ${body.workDate} (${body.startTime}–${body.endTime}): ${body.reason}`);
+    return { row: created, autoApproved: autoApprove };
   });
 }
 
