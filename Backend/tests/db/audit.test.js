@@ -64,3 +64,15 @@ test('truncates an over-long ip to fit varchar(45)', async () => {
   const { rows } = await db.query("SELECT ip_address FROM audit_logs WHERE action = 'TEST_IP'");
   assert.equal(rows[0].ip_address.length, 45);
 });
+
+test('keeps Date values as ISO strings and Buffers as a placeholder (not empty objects)', async () => {
+  const when = new Date('2026-09-25T10:00:00.000Z');
+  await writeAudit(db, {
+    user: null, action: 'TEST_DATE', table: 'employees', recordId: 'X',
+    oldValues: { updated_at: when, face: Buffer.from('abc') },
+    newValues: { joined: when },
+  });
+  const { rows } = await db.query("SELECT old_values, new_values FROM audit_logs WHERE action = 'TEST_DATE'");
+  assert.deepEqual(rows[0].old_values, { updated_at: '2026-09-25T10:00:00.000Z', face: '[BINARY]' });
+  assert.deepEqual(rows[0].new_values, { joined: '2026-09-25T10:00:00.000Z' });
+});

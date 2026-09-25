@@ -1,6 +1,8 @@
 const SECRET_KEYS = new Set(['password_hash', 'token_hash', 'face_encoding']);
 
 function scrub(value) {
+  if (value instanceof Date) return value.toISOString();
+  if (Buffer.isBuffer(value)) return '[BINARY]';
   if (Array.isArray(value)) return value.map(scrub);
   if (value && typeof value === 'object') {
     return Object.fromEntries(

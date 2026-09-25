@@ -1,6 +1,8 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
+const { parseTrustProxy } = require('../utils/trustProxy');
+
 const isTest = process.env.NODE_ENV === 'test';
 
 const list = (value, fallback) =>
@@ -26,10 +28,15 @@ const config = {
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN || '24h',
   },
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   corsOrigins: [
     ...new Set([...list(process.env.CORS_ORIGINS, defaultOrigins), process.env.FRONTEND_URL].filter(Boolean)),
   ],
 };
+
+if (isTest && !/^[a-z0-9_]+_test$/.test(config.db.database || '')) {
+  throw new Error(`Refusing to run in test mode against database "${config.db.database}": its name must end with _test`);
+}
 
 if (!config.jwt.secret) {
   throw new Error('JWT_SECRET is required (set it in Backend/.env)');
