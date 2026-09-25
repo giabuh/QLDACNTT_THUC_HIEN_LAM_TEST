@@ -51,6 +51,14 @@ const matrix = {
   'notice.manage': { CEO: ALL, HR_DIRECTOR: ALL },
   'handbook.read': { CEO: 'self', HR_DIRECTOR: 'self', LINE_MANAGER: 'self', EMPLOYEE: 'self', ADMIN: 'self' },
   'handbook.manage': { CEO: ALL, HR_DIRECTOR: ALL },
+  'analytics.read': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
+  'analytics.insight': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
+  'analytics.risk': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
+  'review.write': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
+  'review.delete': { CEO: ALL, HR_DIRECTOR: ALL },
+  'pip.read': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
+  'pip.manage': { CEO: ALL, HR_DIRECTOR: ALL },
+  'dashboard.read': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
   'project.create': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
 };
 
