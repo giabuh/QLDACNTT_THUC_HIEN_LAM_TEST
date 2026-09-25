@@ -15,6 +15,8 @@ const matrix = {
   'user.create': ADMINS,
   'user.update': ADMINS,
   'user.resetPassword': ADMINS,
+  'department.manage': { CEO: ALL, HR_DIRECTOR: ALL },
+  'position.manage': { CEO: ALL, HR_DIRECTOR: ALL },
   'project.create': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
 };
 

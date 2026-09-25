@@ -4,6 +4,10 @@
 const express = require('express');
 const db = require('../../config/db');
 const { authenticate } = require('../../middleware/auth');
+const { validate } = require('../../middleware/validate');
+const { requirePermission } = require('../../policies');
+const controller = require('./controller');
+const { idParam, createBody, updateBody } = require('./schema');
 
 const router = express.Router();
 
@@ -59,5 +63,10 @@ router.get('/:id/employees', authenticate, async (req, res) => {
     return res.status(500).json({ success: false, message: 'Lỗi hệ thống' });
   }
 });
+
+router.get('/:id', authenticate, validate({ params: idParam }), controller.get);
+router.post('/', authenticate, requirePermission('department.manage'), validate({ body: createBody }), controller.create);
+router.put('/:id', authenticate, requirePermission('department.manage'), validate({ params: idParam, body: updateBody }), controller.update);
+router.delete('/:id', authenticate, requirePermission('department.manage'), validate({ params: idParam }), controller.remove);
 
 module.exports = router;
