@@ -8,6 +8,8 @@ const matrix = {
   'employee.list': { CEO: ALL, HR_DIRECTOR: ALL, ADMIN: ALL, LINE_MANAGER: DEPT, EMPLOYEE: ALL },
   'employee.read': { CEO: ALL, HR_DIRECTOR: ALL, ADMIN: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
   'employee.create': { CEO: ALL, HR_DIRECTOR: ALL },
+  'employee.import': { CEO: ALL, HR_DIRECTOR: ALL },
+  'employee.offboard': { CEO: ALL, HR_DIRECTOR: ALL },
   'employee.update': { CEO: ALL, HR_DIRECTOR: ALL },
   'payroll.periods.read': { CEO: ALL, HR_DIRECTOR: ALL },
   'payroll.calculate': { CEO: ALL, HR_DIRECTOR: ALL },

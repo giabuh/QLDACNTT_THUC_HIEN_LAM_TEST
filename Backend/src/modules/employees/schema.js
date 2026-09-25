@@ -84,4 +84,16 @@ const listQuery = z.object({
   limit: z.string().optional(),
 });
 
-module.exports = { idParam, createBody, updateBody, listQuery, isoDate, fields };
+const offboardBody = z.object({
+  terminationDate: isoDate,
+  reason: z.string({ required_error: 'Vui lòng nhập lý do nghỉ việc' }).trim().min(1, 'Vui lòng nhập lý do nghỉ việc').max(500),
+  note: z.string().trim().max(1000).optional(),
+});
+
+const importBody = z.object({
+  rows: z.array(z.unknown(), { required_error: 'Thiếu danh sách nhân viên', invalid_type_error: 'rows phải là một mảng' })
+    .min(1, 'Danh sách trống').max(500, 'Tối đa 500 dòng mỗi lần nhập'),
+  dryRun: z.boolean().optional(),
+});
+
+module.exports = { offboardBody, importBody, idParam, createBody, updateBody, listQuery, isoDate, fields };

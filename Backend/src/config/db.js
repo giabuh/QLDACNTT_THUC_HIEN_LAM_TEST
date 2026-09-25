@@ -1,5 +1,9 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const config = require('./env');
+
+// Return DATE columns as 'YYYY-MM-DD' strings. The default parser builds a local-midnight Date that
+// JSON.stringify shifts to the previous day in timezones ahead of UTC.
+types.setTypeParser(types.builtins.DATE, (value) => value);
 
 const pool = new Pool({
   ...config.db,
