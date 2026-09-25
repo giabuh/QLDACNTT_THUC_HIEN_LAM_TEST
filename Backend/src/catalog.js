@@ -1,6 +1,6 @@
 module.exports = {
   "name": "NEXUS HR Management System API",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "endpoints": {
     "auth": {
       "POST /api/auth/login": "Đăng nhập (trả accessToken, refreshToken)",
@@ -18,10 +18,20 @@ module.exports = {
       "POST  /api/users/:id/unlock": "Mở khóa tài khoản"
     },
     "employees": {
-      "GET  /api/employees": "Danh sách NV (search, filter, pagination)",
-      "GET  /api/employees/:id": "Chi tiết NV",
-      "POST /api/employees": "Thêm NV (HRD/CEO)",
-      "PUT  /api/employees/:id": "Sửa NV (HRD/CEO)"
+      "GET  /api/employees": "Danh sách NV (search, filter, phân trang; ẩn dữ liệu nhạy cảm theo vai trò)",
+      "GET  /api/employees/:id": "Chi tiết NV (Profile 360)",
+      "POST /api/employees": "Thêm NV + hợp đồng ban đầu (HRD/CEO)",
+      "PUT  /api/employees/:id": "Sửa NV (HRD/CEO)",
+      "POST /api/employees/:id/offboard": "Cho NV nghỉ việc (HRD/CEO)",
+      "POST /api/employees/import": "Nhập hàng loạt NV, tối đa 500 dòng (HRD/CEO)"
+    },
+    "contracts": {
+      "GET  /api/employees/:id/contracts": "Hợp đồng của NV (HRD/CEO, hoặc chính NV)",
+      "POST /api/employees/:id/contracts": "Tạo hợp đồng (HRD/CEO)",
+      "GET  /api/contracts/:id": "Chi tiết hợp đồng",
+      "PUT  /api/contracts/:id": "Sửa hợp đồng còn hiệu lực/chờ ký",
+      "POST /api/contracts/:id/activate": "Kích hoạt hợp đồng chờ ký",
+      "POST /api/contracts/:id/terminate": "Chấm dứt hợp đồng"
     },
     "departments": {
       "GET    /api/departments": "Danh sách phòng ban",

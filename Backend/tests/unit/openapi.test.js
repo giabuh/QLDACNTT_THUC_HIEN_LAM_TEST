@@ -22,7 +22,7 @@ function documentedOperations() {
 
 const toOpenApiPath = (p) => p.replace(/^\/api/, '').replace(/:([A-Za-z]+)/g, '{$1}');
 
-const DOCUMENTED_MODULES = ['auth', 'users', 'departments', 'positions', 'auditLogs'];
+const DOCUMENTED_MODULES = ['auth', 'users', 'employees', 'contracts', 'departments', 'positions', 'auditLogs'];
 
 test('openapi.yaml declares the basics', () => {
   assert.match(text, /^openapi: 3\.0\.\d/m);

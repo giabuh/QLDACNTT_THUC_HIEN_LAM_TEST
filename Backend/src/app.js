@@ -38,6 +38,7 @@ app.use('/api/audit-logs', require('./modules/audit/routes'));
 app.use('/api/employees', require('./modules/employees/routes'));
 app.use('/api/departments', require('./modules/departments/routes'));
 app.use('/api/positions', require('./modules/positions/routes'));
+app.use('/api', require('./modules/contracts/routes'));
 app.use('/api/attendance', require('./modules/attendance/routes'));
 app.use('/api/leaves', require('./modules/leaves/routes'));
 app.use('/api/payroll', require('./modules/payroll/routes'));

@@ -5,6 +5,8 @@ const DEPT = 'department';
 const ADMINS = { CEO: ALL, HR_DIRECTOR: ALL, ADMIN: ALL };
 
 const matrix = {
+  'contract.read': { CEO: ALL, HR_DIRECTOR: ALL, EMPLOYEE: 'self' },
+  'contract.manage': { CEO: ALL, HR_DIRECTOR: ALL },
   'employee.list': { CEO: ALL, HR_DIRECTOR: ALL, ADMIN: ALL, LINE_MANAGER: DEPT, EMPLOYEE: ALL },
   'employee.read': { CEO: ALL, HR_DIRECTOR: ALL, ADMIN: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
   'employee.create': { CEO: ALL, HR_DIRECTOR: ALL },

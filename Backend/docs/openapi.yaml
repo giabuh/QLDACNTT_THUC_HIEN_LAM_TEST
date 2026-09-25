@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: NEXUS HRMS Backend API
-  version: 1.1.0
+  version: 1.2.0
   description: >
     REST API for the NEXUS HRMS frontend. Success bodies are `{ success: true, data, pagination? }`
     (some legacy endpoints add extra top-level fields). Error bodies are
@@ -15,6 +15,8 @@ security:
 tags:
   - name: auth
   - name: users
+  - name: employees
+  - name: contracts
   - name: departments
   - name: positions
   - name: audit
@@ -281,6 +283,276 @@ paths:
           description: Updated account
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+  /employees:
+    get:
+      tags: [employees]
+      summary: List employees
+      description: >
+        LINE_MANAGER sees only their own department (or only themselves without one). Sensitive fields
+        (base_salary, citizen_id, bank_account, bank_name, date_of_birth, address, termination_reason) are removed
+        unless the caller is the record owner, HR_DIRECTOR or CEO. face_encoding is never returned.
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: department, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/EmployeeStatus' } }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/limit' }
+      responses:
+        '200':
+          description: Page of employees (snake_case rows)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Employee' }
+                  pagination: { $ref: '#/components/schemas/Pagination' }
+    post:
+      tags: [employees]
+      summary: Create an employee (onboarding)
+      description: Roles CEO, HR_DIRECTOR. Creates the initial active contract from contractType, baseSalary and joinedDate. `id` is generated (`NV-<n>`) when omitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeInput' }
+      responses:
+        '201':
+          description: Created
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /employees/import:
+    post:
+      tags: [employees]
+      summary: Bulk import employees
+      description: >
+        Roles CEO, HR_DIRECTOR. 1 to 500 rows, each shaped like the create body. Every row runs in its own savepoint:
+        bad rows are reported in `failed` (1-based `row`) and the good ones are kept. With `dryRun` nothing is written.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows]
+              properties:
+                rows:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  items: { $ref: '#/components/schemas/EmployeeInput' }
+                dryRun: { type: boolean }
+      responses:
+        '200':
+          description: Import result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  dryRun: { type: boolean }
+                  created: { type: integer }
+                  createdIds:
+                    type: array
+                    items: { type: string }
+                  failed:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        row: { type: integer }
+                        code: { type: string }
+                        message: { type: string }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /employees/{id}:
+    get:
+      tags: [employees]
+      summary: Employee detail (Profile 360)
+      description: EMPLOYEE may open only their own record; LINE_MANAGER only their department; others all.
+      parameters:
+        - { $ref: '#/components/parameters/empId' }
+      responses:
+        '200':
+          description: Employee
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [employees]
+      summary: Update an employee
+      description: Partial update; `null` clears a nullable field. `status: DA_NGHI_VIEC` is refused (use offboard) and a terminated employee cannot change status.
+      parameters:
+        - { $ref: '#/components/parameters/empId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeInput' }
+      responses:
+        '200':
+          description: Updated
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /employees/{id}/offboard:
+    post:
+      tags: [employees]
+      summary: End an employment
+      description: >
+        Roles CEO, HR_DIRECTOR. Sets status DA_NGHI_VIEC with termination date and reason, disables the login,
+        revokes all refresh tokens, terminates the active contract and clears the department head role.
+        `directReports` is the number of active employees still reporting to this person.
+      parameters:
+        - { $ref: '#/components/parameters/empId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [terminationDate, reason]
+              properties:
+                terminationDate: { type: string, format: date }
+                reason: { type: string }
+                note: { type: string }
+      responses:
+        '200':
+          description: Employee terminated
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /employees/{id}/contracts:
+    get:
+      tags: [contracts]
+      summary: Contracts of an employee, newest first
+      description: HR_DIRECTOR and CEO for anyone; an EMPLOYEE only for themselves.
+      parameters:
+        - { $ref: '#/components/parameters/empId' }
+      responses:
+        '200':
+          description: Contracts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Contract' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [contracts]
+      summary: Create a contract
+      description: >
+        Roles CEO, HR_DIRECTOR. With status HIEU_LUC (default) the employee's active contract ends the day before
+        this one starts (409 CONTRACT_OVERLAP if this one does not start later) and the employee's base_salary and
+        contract_type are synced. CHO_KY creates a draft that changes nothing until activated.
+      parameters:
+        - { $ref: '#/components/parameters/empId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, startDate, salary]
+              properties:
+                contractNo: { type: string, description: Generated when omitted }
+                type: { $ref: '#/components/schemas/ContractType' }
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date, nullable: true }
+                salary: { type: number, minimum: 0 }
+                status: { type: string, enum: [HIEU_LUC, CHO_KY] }
+                fileUrl: { type: string, nullable: true }
+                signedAt: { type: string, format: date-time, nullable: true }
+                note: { type: string, nullable: true }
+      responses:
+        '201':
+          description: Created
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /contracts/{id}:
+    get:
+      tags: [contracts]
+      summary: Get one contract
+      parameters:
+        - { $ref: '#/components/parameters/contractId' }
+      responses:
+        '200':
+          description: Contract
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [contracts]
+      summary: Edit a draft or active contract
+      description: Editable fields are salary, endDate, fileUrl, signedAt, note. Ended contracts return 409. A salary edit on the active contract syncs the employee.
+      parameters:
+        - { $ref: '#/components/parameters/contractId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                salary: { type: number, minimum: 0 }
+                endDate: { type: string, format: date, nullable: true }
+                fileUrl: { type: string, nullable: true }
+                signedAt: { type: string, format: date-time, nullable: true }
+                note: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Updated
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /contracts/{id}/activate:
+    post:
+      tags: [contracts]
+      summary: Activate a draft (CHO_KY) contract
+      parameters:
+        - { $ref: '#/components/parameters/contractId' }
+      responses:
+        '200':
+          description: Activated
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /contracts/{id}/terminate:
+    post:
+      tags: [contracts]
+      summary: Terminate a contract
+      description: The end date defaults to today and cannot precede the start date.
+      parameters:
+        - { $ref: '#/components/parameters/contractId' }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                terminationDate: { type: string, format: date }
+                note: { type: string }
+      responses:
+        '200':
+          description: Terminated
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /departments:
     get:
       tags: [departments]
@@ -478,6 +750,16 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    empId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, example: NV-0842 }
+    contractId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, example: CT-00001 }
     deptId:
       name: id
       in: path
@@ -512,6 +794,81 @@ components:
     Role:
       type: string
       enum: [CEO, HR_DIRECTOR, LINE_MANAGER, EMPLOYEE, KIOSK, ADMIN]
+    EmployeeStatus:
+      type: string
+      enum: [DANG_LAM_VIEC, THU_VIEC, TAM_HOAN, DA_NGHI_VIEC]
+    ContractType:
+      type: string
+      enum: [CHINH_THUC, THU_VIEC, THOI_VU, CONG_TAC_VIEN]
+    Employee:
+      type: object
+      description: Snake_case row. Sensitive fields may be absent depending on the caller (see GET /employees).
+      properties:
+        id: { type: string, example: NV-0842 }
+        full_name: { type: string }
+        department_id: { type: string, nullable: true }
+        department_name: { type: string, nullable: true }
+        position_id: { type: string, nullable: true }
+        position_name: { type: string, nullable: true }
+        job_title: { type: string }
+        work_email: { type: string }
+        phone_number: { type: string, nullable: true }
+        gender: { type: string, enum: [Nam, Nu, Khac], nullable: true }
+        joined_date: { type: string, format: date }
+        termination_date: { type: string, format: date, nullable: true }
+        manager_id: { type: string, nullable: true }
+        manager_name: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/EmployeeStatus' }
+        contract_type: { $ref: '#/components/schemas/ContractType' }
+        avatar_url: { type: string, nullable: true }
+        kpi_score: { type: number }
+        attendance_rate: { type: number }
+        base_salary: { type: number, description: Sensitive }
+        citizen_id: { type: string, nullable: true, description: Sensitive }
+        bank_account: { type: string, nullable: true, description: Sensitive }
+        bank_name: { type: string, nullable: true, description: Sensitive }
+        date_of_birth: { type: string, format: date, nullable: true, description: Sensitive }
+        address: { type: string, nullable: true, description: Sensitive }
+        termination_reason: { type: string, nullable: true, description: Sensitive }
+    EmployeeInput:
+      type: object
+      description: camelCase input. On create `fullName`, `jobTitle`, `workEmail` and `joinedDate` are required.
+      properties:
+        id: { type: string, description: 3-20 chars [A-Za-z0-9-]; generated when omitted }
+        fullName: { type: string }
+        jobTitle: { type: string }
+        workEmail: { type: string }
+        joinedDate: { type: string, format: date }
+        departmentId: { type: string, nullable: true }
+        positionId: { type: string, nullable: true }
+        phoneNumber: { type: string, nullable: true }
+        citizenId: { type: string, nullable: true, description: 9 or 12 digits }
+        dateOfBirth: { type: string, format: date, nullable: true }
+        gender: { type: string, enum: [Nam, Nu, Khac], nullable: true }
+        address: { type: string, nullable: true }
+        baseSalary: { type: number, minimum: 0 }
+        contractType: { $ref: '#/components/schemas/ContractType' }
+        managerId: { type: string, nullable: true }
+        avatarUrl: { type: string, nullable: true }
+        bankAccount: { type: string, nullable: true }
+        bankName: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/EmployeeStatus' }
+    Contract:
+      type: object
+      properties:
+        id: { type: string, example: CT-00001 }
+        employee_id: { type: string }
+        contract_no: { type: string }
+        type: { $ref: '#/components/schemas/ContractType' }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date, nullable: true }
+        salary: { type: number }
+        status: { type: string, enum: [CHO_KY, HIEU_LUC, HET_HAN, DA_CHAM_DUT] }
+        file_url: { type: string, nullable: true }
+        signed_at: { type: string, format: date-time, nullable: true }
+        note: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
     SessionUser:
       type: object
       properties:
