@@ -1,7 +1,9 @@
 const ALWAYS = new Set(['face_encoding', 'password_hash', 'token_hash']);
-const ADMIN_HIDDEN = new Set([
-  'base_salary', 'salary', 'citizen_id', 'bank_account', 'bank_name', 'date_of_birth', 'address',
-]);
+// Employee fields only the owner, HR_DIRECTOR and CEO may see.
+const SENSITIVE_EMPLOYEE_FIELDS = [
+  'base_salary', 'citizen_id', 'bank_account', 'bank_name', 'date_of_birth', 'address', 'termination_reason',
+];
+const ADMIN_HIDDEN = new Set([...SENSITIVE_EMPLOYEE_FIELDS, 'salary']);
 
 /**
  * Copy of an audit old/new value with secrets replaced by "[REDACTED]".
@@ -19,4 +21,4 @@ function redactAuditValues(value, roleCode) {
   return walk(value);
 }
 
-module.exports = { redactAuditValues };
+module.exports = { redactAuditValues, SENSITIVE_EMPLOYEE_FIELDS };
