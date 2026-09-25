@@ -205,7 +205,7 @@ npm run test:smoke
   4. `GET /api/auth/me`: Kiểm tra xác thực Bearer token và lấy hồ sơ người dùng đăng nhập.
   5. `GET /api/employees`: Kiểm tra quyền truy cập và dữ liệu danh bạ nhân sự.
 
-### 3. Backend tests and migrations
+### 3. Backend tests, migrations and API docs
 
 ```bash
 npm run test:unit --prefix Backend   # unit tests (no database)
@@ -214,6 +214,8 @@ npm run migrate --prefix Backend     # applies pending SQL files from Backend/mi
 ```
 
 Schema changes go in `Backend/migrations/NNN_description.sql`; never edit `database/schema.sql` for new changes.
+
+API reference for the frontend: `Backend/docs/openapi.yaml` (OpenAPI 3). Sessions use a short-lived `accessToken` plus a single-use `refreshToken` (`POST /api/auth/refresh`); `POST /api/auth/login` still returns the legacy `token` field. Set `JWT_EXPIRES_IN=30m` in `Backend/.env` once the frontend refreshes tokens; set `TRUST_PROXY=1` when running behind a reverse proxy.
 
 ---
 

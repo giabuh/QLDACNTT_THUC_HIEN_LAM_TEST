@@ -34,6 +34,7 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/refresh', authLimiter);
 app.use('/api/auth', require('./modules/auth/routes'));
 app.use('/api/users', require('./modules/users/routes'));
+app.use('/api/audit-logs', require('./modules/audit/routes'));
 app.use('/api/employees', require('./modules/employees/routes'));
 app.use('/api/departments', require('./modules/departments/routes'));
 app.use('/api/positions', require('./modules/positions/routes'));

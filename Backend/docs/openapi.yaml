@@ -1,0 +1,542 @@
+openapi: 3.0.3
+info:
+  title: NEXUS HRMS Backend API
+  version: 1.1.0
+  description: >
+    REST API for the NEXUS HRMS frontend. Success bodies are `{ success: true, data, pagination? }`
+    (some legacy endpoints add extra top-level fields). Error bodies are
+    `{ success: false, code, message, details? }`. Messages are Vietnamese.
+    Send `Authorization: Bearer <accessToken>` on every endpoint except login, refresh, logout and health.
+    Access tokens are short-lived; use POST /auth/refresh with the refresh token to get a new pair.
+servers:
+  - url: http://localhost:8000/api
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+  - name: users
+  - name: departments
+  - name: positions
+  - name: audit
+paths:
+  /health:
+    get:
+      tags: [auth]
+      summary: Health check (no auth)
+      security: []
+      responses:
+        '200':
+          description: Server and database are up
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Log in with email and password
+      description: Returns the legacy `token` (same value as `accessToken`) plus a refresh token. Locked after 5 failed attempts for 15 minutes.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  token: { type: string, description: Legacy alias of accessToken }
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+                  expiresIn: { type: integer, description: Access token lifetime in seconds }
+                  mustChangePassword: { type: boolean }
+                  user: { $ref: '#/components/schemas/SessionUser' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403':
+          description: Account disabled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '423':
+          description: Account locked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Exchange a refresh token for a new access + refresh pair
+      description: >
+        The refresh token is single-use (rotation). Presenting an already-used token revokes the whole
+        session chain and returns 401 `REFRESH_TOKEN_REUSED`; the user must log in again.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  token: { type: string }
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+                  expiresIn: { type: integer }
+        '400': { $ref: '#/components/responses/Error' }
+        '401':
+          description: INVALID_REFRESH_TOKEN, REFRESH_TOKEN_REUSED or ACCOUNT_DISABLED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Revoke a refresh token (idempotent)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: Logged out
+        '400': { $ref: '#/components/responses/Error' }
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Profile of the current user
+      responses:
+        '200':
+          description: Current user
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/change-password:
+    post:
+      tags: [auth]
+      summary: Change own password
+      description: New password needs at least 8 characters with a letter and a digit. Clears `mustChangePassword` and revokes all refresh tokens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, minLength: 8 }
+      responses:
+        '200':
+          description: Password changed
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /users:
+    get:
+      tags: [users]
+      summary: List accounts
+      description: Roles CEO, HR_DIRECTOR, ADMIN.
+      parameters:
+        - { name: search, in: query, schema: { type: string }, description: Matches email, full name or employee id }
+        - { name: role, in: query, schema: { $ref: '#/components/schemas/Role' } }
+        - { name: active, in: query, schema: { type: string, enum: ['true', 'false'] } }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/limit' }
+      responses:
+        '200':
+          description: Page of accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/User' }
+                  pagination: { $ref: '#/components/schemas/Pagination' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [users]
+      summary: Create an account
+      description: >
+        CEO and ADMIN may assign any role; HR_DIRECTOR only EMPLOYEE, LINE_MANAGER, KIOSK.
+        Without `password` a temporary password is generated and returned once as `temporaryPassword`.
+        The account must change its password at first login. `employeeId` is optional only for KIOSK and ADMIN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                employeeId: { type: string }
+                email: { type: string }
+                role: { $ref: '#/components/schemas/Role' }
+                password: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/User' }
+                  temporaryPassword: { type: string, description: Shown once, only when no password was supplied }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /users/{id}:
+    get:
+      tags: [users]
+      summary: Get one account
+      parameters:
+        - { $ref: '#/components/parameters/userId' }
+      responses:
+        '200':
+          description: Account
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [users]
+      summary: Change role or active flag
+      description: Nobody can change their own role or deactivate themselves. Deactivating revokes all refresh tokens. HR_DIRECTOR cannot manage CEO/ADMIN accounts.
+      parameters:
+        - { $ref: '#/components/parameters/userId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { $ref: '#/components/schemas/Role' }
+                isActive: { type: boolean }
+      responses:
+        '200':
+          description: Updated account
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /users/{id}/reset-password:
+    post:
+      tags: [users]
+      summary: Set a temporary password
+      description: Unlocks the account, forces a password change at next login and revokes all sessions. The temporary password is returned once.
+      parameters:
+        - { $ref: '#/components/parameters/userId' }
+      responses:
+        '200':
+          description: Temporary password issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  temporaryPassword: { type: string }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /users/{id}/unlock:
+    post:
+      tags: [users]
+      summary: Clear the lockout and failed-attempt counter
+      parameters:
+        - { $ref: '#/components/parameters/userId' }
+      responses:
+        '200':
+          description: Updated account
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /departments:
+    get:
+      tags: [departments]
+      summary: List active departments with head count
+      responses:
+        '200':
+          description: Departments
+    post:
+      tags: [departments]
+      summary: Create a department
+      description: Roles CEO, HR_DIRECTOR. The id is `DEPT-<code>`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code: { type: string, description: 2-15 letters or digits, stored upper-case }
+                name: { type: string }
+                description: { type: string, nullable: true }
+                budgetYearly: { type: number, minimum: 0 }
+                managerId: { type: string, nullable: true }
+      responses:
+        '201':
+          description: Created
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /departments/{id}:
+    get:
+      tags: [departments]
+      summary: Get one department
+      parameters:
+        - { $ref: '#/components/parameters/deptId' }
+      responses:
+        '200':
+          description: Department
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [departments]
+      summary: Update a department
+      parameters:
+        - { $ref: '#/components/parameters/deptId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string, nullable: true }
+                budgetYearly: { type: number, minimum: 0 }
+                managerId: { type: string, nullable: true }
+                isActive: { type: boolean }
+      responses:
+        '200':
+          description: Updated
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [departments]
+      summary: Deactivate a department
+      description: Refused with 409 `DEPARTMENT_HAS_EMPLOYEES` while non-terminated employees remain. Idempotent.
+      parameters:
+        - { $ref: '#/components/parameters/deptId' }
+      responses:
+        '200':
+          description: Deactivated
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /departments/{id}/employees:
+    get:
+      tags: [departments]
+      summary: Active employees of a department
+      parameters:
+        - { $ref: '#/components/parameters/deptId' }
+      responses:
+        '200':
+          description: Employees
+  /positions:
+    get:
+      tags: [positions]
+      summary: List positions (job titles)
+      parameters:
+        - { name: includeInactive, in: query, schema: { type: string, enum: ['true', 'false'] } }
+      responses:
+        '200':
+          description: Positions ordered by level then name
+    post:
+      tags: [positions]
+      summary: Create a position
+      description: Roles CEO, HR_DIRECTOR. The id is `POS-<code>`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code: { type: string }
+                name: { type: string }
+                level: { type: integer, minimum: 0, maximum: 10 }
+                description: { type: string, nullable: true }
+      responses:
+        '201':
+          description: Created
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /positions/{id}:
+    get:
+      tags: [positions]
+      summary: Get one position
+      parameters:
+        - { $ref: '#/components/parameters/posId' }
+      responses:
+        '200':
+          description: Position
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [positions]
+      summary: Update a position
+      parameters:
+        - { $ref: '#/components/parameters/posId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                level: { type: integer, minimum: 0, maximum: 10 }
+                description: { type: string, nullable: true }
+                isActive: { type: boolean }
+      responses:
+        '200':
+          description: Updated
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [positions]
+      summary: Deactivate a position
+      description: Refused with 409 `POSITION_IN_USE` while non-terminated employees hold it.
+      parameters:
+        - { $ref: '#/components/parameters/posId' }
+      responses:
+        '200':
+          description: Deactivated
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /audit-logs:
+    get:
+      tags: [audit]
+      summary: System audit trail, newest first
+      description: Roles CEO and ADMIN. `from` is inclusive, `to` is exclusive. Secrets are redacted at write time.
+      parameters:
+        - { name: table, in: query, schema: { type: string } }
+        - { name: action, in: query, schema: { type: string } }
+        - { name: userId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/limit' }
+      responses:
+        '200':
+          description: Page of audit entries
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    limit:
+      name: limit
+      in: query
+      description: Clamped to 1..200
+      schema: { type: integer, default: 50, maximum: 200 }
+    userId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    deptId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, example: DEPT-IT }
+    posId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, example: POS-MGR }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        code: { type: string, example: VALIDATION_ERROR }
+        message: { type: string }
+        details: { description: 'Field errors ([{path, message}]) or extra info' }
+    Pagination:
+      type: object
+      properties:
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+        totalPages: { type: integer }
+    Role:
+      type: string
+      enum: [CEO, HR_DIRECTOR, LINE_MANAGER, EMPLOYEE, KIOSK, ADMIN]
+    SessionUser:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        employeeId: { type: string, nullable: true }
+        email: { type: string }
+        roleCode: { $ref: '#/components/schemas/Role' }
+        fullName: { type: string, nullable: true }
+        jobTitle: { type: string, nullable: true }
+        avatarUrl: { type: string, nullable: true }
+        departmentId: { type: string, nullable: true }
+        departmentName: { type: string, nullable: true }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        employeeId: { type: string, nullable: true }
+        email: { type: string }
+        roleCode: { $ref: '#/components/schemas/Role' }
+        isActive: { type: boolean }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
+        lockedUntil: { type: string, format: date-time, nullable: true }
+        failedLoginAttempts: { type: integer }
+        mustChangePassword: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        fullName: { type: string, nullable: true }
+        departmentId: { type: string, nullable: true }
+        departmentName: { type: string, nullable: true }

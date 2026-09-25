@@ -17,6 +17,7 @@ const matrix = {
   'user.resetPassword': ADMINS,
   'department.manage': { CEO: ALL, HR_DIRECTOR: ALL },
   'position.manage': { CEO: ALL, HR_DIRECTOR: ALL },
+  'audit.read': { CEO: ALL, ADMIN: ALL },
   'project.create': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
 };
 
