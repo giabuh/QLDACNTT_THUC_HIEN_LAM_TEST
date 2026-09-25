@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
 const config = require('../src/config/env');
+const { runMigrations } = require('./migrate');
 
 function assertTestDatabaseName(name) {
   if (typeof name !== 'string' || !/^[a-z0-9_]+_test$/.test(name)) {
@@ -28,6 +29,11 @@ async function main() {
   const schemaSql = fs.readFileSync(path.resolve(__dirname, '../../database/schema.sql'), 'utf8');
   await client.query(schemaSql);
   await client.end();
+
+  const db = require('../src/config/db');
+  const applied = await runMigrations({ pool: db.pool });
+  await db.pool.end();
+  if (applied.length) console.log(`✅ Applied ${applied.length} migration(s): ${applied.join(', ')}`);
 
   console.log(`✅ Test database "${dbName}" recreated from schema.sql`);
 }
