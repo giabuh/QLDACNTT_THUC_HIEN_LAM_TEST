@@ -2,8 +2,8 @@
 // routes/attendance.js — Attendance API
 // ============================================
 const express = require('express');
-const db = require('../db');
-const { authenticate, authorize } = require('../middleware/auth');
+const db = require('../../config/db');
+const { authenticate } = require('../../middleware/auth');
 
 const router = express.Router();
 

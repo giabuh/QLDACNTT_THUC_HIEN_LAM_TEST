@@ -2,8 +2,9 @@
 // routes/payroll.js — Payroll API
 // ============================================
 const express = require('express');
-const db = require('../db');
-const { authenticate, authorize } = require('../middleware/auth');
+const db = require('../../config/db');
+const { authenticate } = require('../../middleware/auth');
+const { requirePermission } = require('../../policies');
 
 const router = express.Router();
 
@@ -11,7 +12,7 @@ const router = express.Router();
  * GET /api/payroll/periods
  * Danh sách kỳ lương
  */
-router.get('/periods', authenticate, authorize('CEO', 'HR_DIRECTOR'), async (req, res) => {
+router.get('/periods', authenticate, requirePermission('payroll.periods.read'), async (req, res) => {
   try {
     const { rows } = await db.query(`
       SELECT * FROM payroll_periods ORDER BY period DESC LIMIT 24
@@ -107,7 +108,7 @@ router.get('/me', authenticate, async (req, res) => {
  * Tính lương tháng cho tất cả NV (HRD only)
  * Body: { period: "2026-09" }
  */
-router.post('/calculate', authenticate, authorize('CEO', 'HR_DIRECTOR'), async (req, res) => {
+router.post('/calculate', authenticate, requirePermission('payroll.calculate'), async (req, res) => {
   const client = await db.getClient();
   try {
     const { period } = req.body; // format: "2026-09"

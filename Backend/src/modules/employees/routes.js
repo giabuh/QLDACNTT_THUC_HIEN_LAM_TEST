@@ -2,8 +2,9 @@
 // routes/employees.js — Employee CRUD API
 // ============================================
 const express = require('express');
-const db = require('../db');
-const { authenticate, authorize } = require('../middleware/auth');
+const db = require('../../config/db');
+const { authenticate } = require('../../middleware/auth');
+const { requirePermission } = require('../../policies');
 
 const router = express.Router();
 
@@ -168,7 +169,7 @@ router.get('/:id', authenticate, async (req, res) => {
  * POST /api/employees
  * Thêm nhân viên mới (HRD/CEO only)
  */
-router.post('/', authenticate, authorize('CEO', 'HR_DIRECTOR'), async (req, res) => {
+router.post('/', authenticate, requirePermission('employee.create'), async (req, res) => {
   try {
     const {
       id, fullName, departmentId, positionId, jobTitle,
@@ -241,7 +242,7 @@ router.post('/', authenticate, authorize('CEO', 'HR_DIRECTOR'), async (req, res)
  * PUT /api/employees/:id
  * Sửa thông tin nhân viên (HRD/CEO only)
  */
-router.put('/:id', authenticate, authorize('CEO', 'HR_DIRECTOR'), async (req, res) => {
+router.put('/:id', authenticate, requirePermission('employee.update'), async (req, res) => {
   try {
     const { id } = req.params;
     const {

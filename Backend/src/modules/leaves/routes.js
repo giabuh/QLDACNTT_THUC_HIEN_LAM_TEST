@@ -2,8 +2,9 @@
 // routes/leaves.js — Leave Request API (2-cấp duyệt)
 // ============================================
 const express = require('express');
-const db = require('../db');
-const { authenticate, authorize } = require('../middleware/auth');
+const db = require('../../config/db');
+const { authenticate } = require('../../middleware/auth');
+const { requirePermission } = require('../../policies');
 
 const router = express.Router();
 
@@ -186,7 +187,7 @@ router.get('/types', authenticate, async (req, res) => {
  * Duyệt phép (Manager cấp 1 hoặc HR cấp 2)
  * Body: { note }
  */
-router.patch('/:id/approve', authenticate, authorize('CEO', 'HR_DIRECTOR', 'LINE_MANAGER'), async (req, res) => {
+router.patch('/:id/approve', authenticate, requirePermission('leave.approve'), async (req, res) => {
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
@@ -260,7 +261,7 @@ router.patch('/:id/approve', authenticate, authorize('CEO', 'HR_DIRECTOR', 'LINE
  * PATCH /api/leaves/:id/reject
  * Từ chối phép
  */
-router.patch('/:id/reject', authenticate, authorize('CEO', 'HR_DIRECTOR', 'LINE_MANAGER'), async (req, res) => {
+router.patch('/:id/reject', authenticate, requirePermission('leave.reject'), async (req, res) => {
   try {
     const { note } = req.body;
     if (!note) {

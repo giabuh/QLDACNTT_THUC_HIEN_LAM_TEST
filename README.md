@@ -205,6 +205,16 @@ npm run test:smoke
   4. `GET /api/auth/me`: Kiểm tra xác thực Bearer token và lấy hồ sơ người dùng đăng nhập.
   5. `GET /api/employees`: Kiểm tra quyền truy cập và dữ liệu danh bạ nhân sự.
 
+### 3. Backend tests and migrations
+
+```bash
+npm run test:unit --prefix Backend   # unit tests (no database)
+npm test --prefix Backend            # recreates nexus_hrms_test from database/schema.sql + migrations, then runs all tests
+npm run migrate --prefix Backend     # applies pending SQL files from Backend/migrations to the DB in Backend/.env
+```
+
+Schema changes go in `Backend/migrations/NNN_description.sql`; never edit `database/schema.sql` for new changes.
+
 ---
 
 ## 7. Danh mục Tài khoản Demo Kiểm thử

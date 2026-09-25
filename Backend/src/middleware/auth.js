@@ -2,7 +2,7 @@
 // middleware/auth.js — JWT Authentication + RBAC
 // ============================================
 const jwt = require('jsonwebtoken');
-const db = require('../db');
+const db = require('../config/db');
 
 /**
  * Middleware: Xác thực JWT token
@@ -46,33 +46,4 @@ const authenticate = (req, res, next) => {
   }
 };
 
-/**
- * Middleware Factory: Kiểm tra quyền theo vai trò
- * @param {...string} allowedRoles - Danh sách role_code được phép
- * 
- * Ví dụ:
- *   router.get('/payroll', authenticate, authorize('CEO', 'HR_DIRECTOR'), handler);
- *   router.get('/me', authenticate, handler); // Tất cả role đều truy cập được
- */
-const authorize = (...allowedRoles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Chưa xác thực',
-      });
-    }
-
-    if (!allowedRoles.includes(req.user.roleCode)) {
-      return res.status(403).json({
-        success: false,
-        message: `Vai trò "${req.user.roleCode}" không có quyền truy cập chức năng này`,
-        required: allowedRoles,
-      });
-    }
-
-    next();
-  };
-};
-
-module.exports = { authenticate, authorize };
+module.exports = { authenticate };

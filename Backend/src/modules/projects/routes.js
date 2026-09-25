@@ -2,8 +2,9 @@
 // routes/projects.js — Projects & Tasks & Squads API
 // ============================================
 const express = require('express');
-const db = require('../db');
-const { authenticate, authorize } = require('../middleware/auth');
+const db = require('../../config/db');
+const { authenticate } = require('../../middleware/auth');
+const { requirePermission } = require('../../policies');
 
 const router = express.Router();
 
@@ -183,7 +184,7 @@ router.post('/:id/tasks', authenticate, async (req, res) => {
  * POST /api/projects
  * Tạo dự án mới
  */
-router.post('/', authenticate, authorize('CEO', 'HR_DIRECTOR', 'LINE_MANAGER'), async (req, res) => {
+router.post('/', authenticate, requirePermission('project.create'), async (req, res) => {
   try {
     const { name, code, department_id, start_date, end_date, priority = 'Trung bình', description, budget_hours = 100 } = req.body;
     if (!name) {
