@@ -65,4 +65,4 @@ async function applyRejection(client, table, row, note) {
   );
 }
 
-module.exports = { denial, departmentOf, requesterContext, applyApproval, applyRejection };
+module.exports = { assertTable, denial, departmentOf, requesterContext, applyApproval, applyRejection };
