@@ -237,46 +237,23 @@ Hệ thống được thiết kế sẵn các nhóm tài khoản theo phân quy�
 
 ## 8. Danh mục API Endpoints
 
-Các API chính được phục vụ tại base URL `http://localhost:8000/api`:
+Base URL: `http://localhost:8000/api`. Tài liệu đầy đủ (request, response, mã lỗi, quyền) nằm ở **[`Backend/docs/openapi.yaml`](Backend/docs/openapi.yaml)** (OpenAPI 3); bảng thay đổi ảnh hưởng frontend nằm ở **[`docs/API_CHANGES.md`](docs/API_CHANGES.md)**. `GET /api` trả danh mục endpoint dạng JSON.
 
-- **Xác thực (`/api/auth`)**:
-  - `POST /login`: Đăng nhập hệ thống, cấp mã JWT.
-  - `GET /me`: Lấy thông tin tài khoản hiện hành.
-  - `POST /change-password`: Thay đổi mật khẩu người dùng.
-- **Nhân sự (`/api/employees`)**:
-  - `GET /`: Danh sách nhân viên (hỗ trợ phân trang, lọc theo phòng ban/trạng thái, tìm kiếm).
-  - `GET /:id`: Chi tiết nhân viên theo ID hoặc mã `NV-xxxx`.
-  - `POST /`: Tiếp nhận nhân viên mới (dành cho HRD/CEO).
-  - `PUT /:id`: Cập nhật hồ sơ nhân sự.
-- **Phòng ban (`/api/departments`)**:
-  - `GET /`: Danh sách phòng ban và thống kê số lượng nhân sự.
-  - `GET /:id/employees`: Danh sách nhân viên theo phòng ban.
-- **Chấm công (`/api/attendance`)**:
-  - `POST /check-in`: Ghi nhận giờ vào ca làm việc.
-  - `POST /check-out`: Ghi nhận giờ tan ca làm việc.
-  - `GET /me/today`: Kiểm tra trạng thái chấm công cá nhân trong ngày.
-  - `GET /`: Lịch sử chấm công toàn công ty (hỗ trợ lọc theo ngày/tháng).
-- **Nghỉ phép (`/api/leaves`)**:
-  - `POST /`: Nộp đơn xin nghỉ phép mới.
-  - `GET /types`: Danh mục các loại nghỉ phép và chế độ lương.
-  - `GET /balances/:empId`: Xem số dư phép năm còn lại.
-  - `PATCH /:id/approve`: Duyệt đơn phép (hỗ trợ quy trình phê duyệt 2 cấp: Line Manager & HR Director).
-  - `PATCH /:id/reject`: Từ chối đơn phép (kèm lý do).
-  - `PATCH /:id/cancel`: Hủy đơn phép cá nhân.
-- **Tiền lương (`/api/payroll`)**:
-  - `GET /periods`: Danh sách các kỳ tính lương.
-  - `GET /payslips`: Bảng lương tổng hợp toàn doanh nghiệp.
-  - `GET /me`: Tra cứu phiếu lương cá nhân.
-  - `POST /calculate`: Kích hoạt tiến trình tính toán bảng lương tự động (HRD).
-- **Dự án & Kanban (`/api/projects`)**:
-  - `GET /`: Danh sách dự án đang thực hiện.
-  - `GET /:id/tasks`: Danh sách nhiệm vụ theo dự án.
-  - `PATCH /tasks/:id/stage`: Cập nhật trạng thái nhiệm vụ trên bảng Kanban.
-  - `GET /squads`: Danh sách các biệt đội (squads) và thành viên.
-- **Dashboard & Giám sát (`/api/dashboard`)**:
-  - `GET /stats`: Thống kê các chỉ số KPIs nhân sự thời gian thực.
-  - `GET /notifications`: Thông báo hệ thống.
-  - `GET /api/health`: Health check dịch vụ & kiểm tra trạng thái database.
+| Nhóm | Đường dẫn | Nội dung chính |
+| :--- | :--- | :--- |
+| Xác thực | `/api/auth` | login, refresh token xoay vòng, logout, me, đổi mật khẩu |
+| Tài khoản | `/api/users` | tạo tài khoản, đổi vai trò, khóa/mở khóa, cấp mật khẩu tạm |
+| Nhân sự | `/api/employees`, `/api/contracts` | hồ sơ, onboarding, nghỉ việc, nhập hàng loạt, hợp đồng |
+| Cơ cấu | `/api/departments`, `/api/positions` | phòng ban, chức danh |
+| Chấm công | `/api/attendance` | check-in/out, **QR kiosk**, bảng công tháng, đi muộn/vắng, điều chỉnh |
+| Phép, OT, y tế | `/api/leaves`, `/api/ot-requests`, `/api/medical-claims` | chuỗi duyệt NV → Trưởng phòng → HRD (QL/HRD → CEO) |
+| Lương | `/api/payroll` | tính lương, chốt, chuyển khoản, bất thường, phiếu lương |
+| Dự án | `/api/projects`, `/api/tasks`, `/api/squads` | Kanban có nghiệm thu, nhóm và chat nhóm |
+| Thông báo | `/api/notifications`, `/api/notices`, `/api/handbook` | thông báo cá nhân/vai trò, thông báo nội bộ, cẩm nang |
+| Phân tích | `/api/analytics` | đánh giá năng lực, 9-box, rủi ro nghỉ việc, PIP |
+| Hệ thống | `/api/dashboard`, `/api/audit-logs`, `/api/health` | KPI theo phạm vi, nhật ký hệ thống |
+
+**Quy ước chung:** thành công `{ success: true, data, pagination? }`; lỗi `{ success: false, code, message, details? }`. Gửi `Authorization: Bearer <accessToken>`. Danh sách có `?page&limit` (giới hạn được kẹp về mức tối đa). Trường ngày (`DATE`) trả về chuỗi `YYYY-MM-DD`.
 
 ---
 

@@ -1,6 +1,6 @@
 module.exports = {
   "name": "NEXUS HR Management System API",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "endpoints": {
     "auth": {
       "POST /api/auth/login": "Đăng nhập (trả accessToken, refreshToken)",
@@ -100,14 +100,76 @@ module.exports = {
       "POST /api/payroll/calculate": "Tính lương tháng (HRD/CEO)"
     },
     "projects": {
-      "GET   /api/projects": "Danh sách dự án",
-      "GET   /api/projects/:id/tasks": "Tasks theo dự án",
-      "PATCH /api/projects/tasks/:id/stage": "Chuyển Kanban stage",
-      "GET   /api/projects/squads": "Danh sách squads"
+      "GET    /api/projects": "Dự án nhìn thấy được (theo quyền)",
+      "POST   /api/projects": "Tạo dự án (HRD/CEO/Trưởng phòng)",
+      "GET    /api/projects/:id": "Chi tiết dự án",
+      "PUT    /api/projects/:id": "Sửa dự án",
+      "DELETE /api/projects/:id": "Xóa dự án (không còn nhiệm vụ)",
+      "GET    /api/projects/:id/tasks": "Nhiệm vụ của dự án",
+      "POST   /api/projects/:id/tasks": "Tạo nhiệm vụ",
+      "PATCH  /api/projects/tasks/:id/stage": "Chuyển Kanban stage (đường dẫn cũ)",
+      "GET    /api/projects/squads": "Danh sách nhóm (đường dẫn cũ của /api/squads)"
+    },
+    "tasks": {
+      "GET    /api/tasks/:id": "Chi tiết nhiệm vụ",
+      "PUT    /api/tasks/:id": "Sửa nhiệm vụ",
+      "DELETE /api/tasks/:id": "Xóa nhiệm vụ",
+      "PATCH  /api/tasks/:id/stage": "Chuyển stage theo quy trình",
+      "POST   /api/tasks/:id/review": "Nghiệm thu / trả lại nhiệm vụ",
+      "GET    /api/tasks/:id/logs": "Lịch sử nhiệm vụ"
+    },
+    "squads": {
+      "GET    /api/squads": "Nhóm của tôi (HRD/CEO: tất cả)",
+      "POST   /api/squads": "Tạo nhóm",
+      "GET    /api/squads/:id": "Chi tiết nhóm",
+      "PUT    /api/squads/:id": "Sửa nhóm",
+      "DELETE /api/squads/:id": "Xóa nhóm",
+      "POST   /api/squads/:id/members": "Thêm thành viên",
+      "DELETE /api/squads/:id/members/:employeeId": "Xóa thành viên",
+      "GET    /api/squads/:id/messages": "Tin nhắn nhóm (since, limit)",
+      "POST   /api/squads/:id/messages": "Gửi tin nhắn (thành viên)"
+    },
+    "notifications": {
+      "GET    /api/notifications": "Thông báo của tôi (cá nhân + theo vai trò)",
+      "GET    /api/notifications/unread-count": "Số thông báo chưa đọc",
+      "POST   /api/notifications/read-all": "Đánh dấu tất cả đã đọc",
+      "POST   /api/notifications": "Gửi thông báo (HRD/CEO)",
+      "PATCH  /api/notifications/:id/read": "Đánh dấu đã đọc",
+      "DELETE /api/notifications/:id": "Xóa thông báo cá nhân"
+    },
+    "notices": {
+      "GET    /api/notices": "Thông báo nội bộ theo đối tượng",
+      "POST   /api/notices": "Đăng thông báo (HRD/CEO)",
+      "GET    /api/notices/:id": "Chi tiết thông báo",
+      "PUT    /api/notices/:id": "Sửa thông báo",
+      "DELETE /api/notices/:id": "Xóa thông báo"
+    },
+    "handbook": {
+      "GET    /api/handbook": "Cẩm nang (tìm kiếm, theo nhóm)",
+      "GET    /api/handbook/categories": "Nhóm cẩm nang",
+      "POST   /api/handbook": "Tạo tài liệu (HRD/CEO)",
+      "GET    /api/handbook/:id": "Nội dung tài liệu",
+      "PUT    /api/handbook/:id": "Sửa tài liệu (tăng version khi đổi nội dung)",
+      "DELETE /api/handbook/:id": "Ngừng sử dụng tài liệu"
+    },
+    "analytics": {
+      "GET    /api/analytics/reviews": "Đánh giá năng lực",
+      "POST   /api/analytics/reviews": "Tạo đánh giá (tự tính ô 9-box)",
+      "PUT    /api/analytics/reviews/:id": "Sửa đánh giá",
+      "DELETE /api/analytics/reviews/:id": "Xóa đánh giá (HRD/CEO)",
+      "GET    /api/analytics/nine-box": "Phân bố ma trận 9 ô",
+      "GET    /api/analytics/department-scores": "Điểm trung bình theo phòng ban",
+      "GET    /api/analytics/summary": "Tổng quan phân tích nhân sự",
+      "GET    /api/analytics/turnover-risk": "Rủi ro nghỉ việc (HRD/CEO/Trưởng phòng)",
+      "GET    /api/analytics/turnover-risk/:employeeId": "Chi tiết rủi ro nghỉ việc",
+      "GET    /api/analytics/pip": "Kế hoạch cải thiện hiệu suất",
+      "POST   /api/analytics/pip": "Tạo PIP (HRD/CEO)",
+      "GET    /api/analytics/pip/:id": "Chi tiết PIP",
+      "PUT    /api/analytics/pip/:id": "Cập nhật / kết thúc PIP"
     },
     "dashboard": {
-      "GET /api/dashboard/stats": "KPIs Dashboard",
-      "GET /api/dashboard/notifications": "Thông báo"
+      "GET /api/dashboard/stats": "KPI theo phạm vi: công ty / phòng ban / cá nhân",
+      "GET /api/dashboard/notifications": "Thông báo (đường dẫn cũ của /api/notifications)"
     },
     "auditLogs": {
       "GET /api/audit-logs": "Nhật ký hệ thống (CEO/ADMIN)"

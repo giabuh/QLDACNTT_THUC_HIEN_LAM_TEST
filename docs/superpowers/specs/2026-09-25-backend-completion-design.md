@@ -24,7 +24,7 @@ Success criteria:
 - Frontend is NOT modified in this work. It is adapted later using the OpenAPI document.
 - Existing SQL triggers/functions (`fn_calc_attendance`, `fn_update_leave_balance`, `fn_audit_trail`, `fn_task_stage_log`, `fn_calculate_payslip`, `fn_search_employees`) are kept and reused.
 
-Out of scope: WebSocket real-time chat (REST persistence of messages only), email sending, real file upload (URLs are stored only), real face recognition, pushing to any remote.
+Out of scope: WebSocket real-time chat (REST persistence of messages only), email sending, real file upload (URLs are stored only). Attendance uses short-lived QR codes, not face recognition (user decision, 2026-09-25).
 
 ## 3. Known defects to fix
 
@@ -92,10 +92,10 @@ Authentication:
 
 Authorization:
 - `policies/` holds a matrix `resource.action -> { roles, scope }`. Scope values: `self`, `department`, `all`. Routes call `authorize('leave.approve')`; scope resolvers turn the scope into SQL predicates. No inline role checks in controllers.
-- Roles: `CEO`, `HR_DIRECTOR`, `LINE_MANAGER`, `EMPLOYEE`, `KIOSK`, `ADMIN`. `KIOSK` may only call the kiosk check-in endpoints. `ADMIN` is treated as a technical role for user management and audit logs; it does not see payroll or personal data.
+- Roles: `CEO`, `HR_DIRECTOR`, `LINE_MANAGER`, `EMPLOYEE`, `KIOSK`, `ADMIN`. `KIOSK` may only scan QR codes (`POST /attendance/kiosk/punch`) and manage its own login. `ADMIN` is a technical role for user support and audit logs: it can only create/manage EMPLOYEE, LINE_MANAGER and KIOSK accounts, and never sees payroll or personal data (also redacted in the audit log).
 - Sensitive fields (`base_salary`, `citizen_id`, `bank_account`, `bank_name`, `date_of_birth`, `address`, contract salary): visible to the record owner, `HR_DIRECTOR`, `CEO`. `LINE_MANAGER` sees own department members without those fields. `face_encoding` is never returned.
 - Leave approval chain: employee → `LINE_MANAGER` → `HR_DIRECTOR`. Requests from `LINE_MANAGER` and from `HR_DIRECTOR` are approved directly by `CEO`. A user can never approve their own request. OT and medical claims use the same chain.
-- Payroll: `CEO`/`HR_DIRECTOR` manage periods; employees read only their own payslips; `LINE_MANAGER` has no payroll access.
+- Payroll: `CEO`/`HR_DIRECTOR` manage periods; every employee, including a `LINE_MANAGER`, reads only their own payslips and only after the period is locked (the manager has no access to anyone else's payroll). `ADMIN` and `KIOSK` have none.
 
 ## 7. API surface (target ~90 endpoints, 13 modules)
 
