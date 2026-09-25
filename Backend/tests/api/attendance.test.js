@@ -301,3 +301,44 @@ test('live: latest punches of today, HR/CEO/manager only', async () => {
   assert.equal((await callWith(s.token, 'get', '/api/attendance/live')).status, 403);
   assert.equal(has(mine, 'face_encoding'), false);
 });
+
+test('adjust: an explicit status is kept even when punch times are given', async () => {
+  const emp = await createTestEmployee();
+  const res = await call('HR_DIRECTOR', 'post', '/api/attendance/adjust', {
+    employeeId: emp.id, workDate: '2027-04-19', checkIn: '2027-04-19T09:00:00+07:00', checkOut: '2027-04-19T17:00:00+07:00', status: 'CONG_TAC',
+  });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.data.status, 'CONG_TAC');
+  assert.equal(res.body.data.late_minutes, 60);
+  const again = await call('HR_DIRECTOR', 'post', '/api/attendance/adjust', { employeeId: emp.id, workDate: '2027-04-19', checkIn: '2027-04-19T08:30:00+07:00' });
+  assert.equal(again.body.data.status, 'CONG_TAC');
+  const back = await call('HR_DIRECTOR', 'post', '/api/attendance/adjust', { employeeId: emp.id, workDate: '2027-04-19', status: 'DUNG_GIO' });
+  assert.equal(back.body.data.status, 'DI_MUON'); // automatic again
+});
+
+test('an employee can still punch on a day HR pre-marked without times', async () => {
+  const s = await employeeSession();
+  const day = await today();
+  const pre = await call('HR_DIRECTOR', 'post', '/api/attendance/adjust', { employeeId: s.employeeId, workDate: day, status: 'NGHI_LE', note: 'Nghỉ lễ' });
+  assert.equal(pre.status, 201);
+
+  const first = await callWith(s.token, 'post', '/api/attendance/check-in', { method: 'gps' });
+  assert.equal(first.status, 201);
+  assert.ok(first.body.data.check_in_time);
+  assert.notEqual(first.body.data.status, 'NGHI_LE');
+  assert.equal((await callWith(s.token, 'post', '/api/attendance/check-in', {})).status, 409); // now really checked in
+  assert.equal((await callWith(s.token, 'post', '/api/attendance/check-out', {})).status, 200);
+});
+
+test('a pre-marked business-trip day keeps its status when the employee punches; the kiosk works too', async () => {
+  const s = await employeeSession();
+  const day = await today();
+  await call('HR_DIRECTOR', 'post', '/api/attendance/adjust', { employeeId: s.employeeId, workDate: day, status: 'CONG_TAC' });
+  const kiosk = await createTestUser({ role: 'KIOSK' });
+  const { accessToken } = await loginUser(kiosk);
+  const qr = (await callWith(s.token, 'get', '/api/attendance/qr')).body.qrToken;
+  const res = await callWith(accessToken, 'post', '/api/attendance/kiosk/punch', { qrToken: qr });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.action, 'CHECK_IN');
+  assert.equal(res.body.data.status, 'CONG_TAC');
+});

@@ -4,6 +4,8 @@
 //   A CEO request is approved automatically; the CEO can approve any pending step directly.
 //   Nobody acts on their own request.
 
+const { workingDays } = require('../../utils/dates');
+
 const PENDING = ['CHO_TRUONG_PHONG_DUYET', 'CHO_HR_PHE_CHUAN'];
 const CEO_ONLY_REQUESTERS = ['LINE_MANAGER', 'HR_DIRECTOR', 'CEO'];
 
@@ -22,7 +24,8 @@ function decide({
   stage, requesterRole, requesterId, requesterDepartmentId, actorRole, actorId, actorDepartmentId,
 }) {
   if (!PENDING.includes(stage)) return { ok: false, reason: 'NOT_PENDING' };
-  if (actorId && actorId === requesterId) return { ok: false, reason: 'SELF_APPROVAL' };
+  if (!actorId) return { ok: false, reason: 'WRONG_ROLE' }; // approvals must be attributable to an employee
+  if (actorId === requesterId) return { ok: false, reason: 'SELF_APPROVAL' };
   if (actorRole === 'CEO') return { ok: true, next: 'DA_PHE_DUYET' };
 
   if (stage === 'CHO_TRUONG_PHONG_DUYET') {
@@ -35,18 +38,6 @@ function decide({
   if (CEO_ONLY_REQUESTERS.includes(requesterRole)) return { ok: false, reason: 'CEO_ONLY' };
   if (actorRole === 'HR_DIRECTOR') return { ok: true, next: 'DA_PHE_DUYET' };
   return { ok: false, reason: 'WRONG_ROLE' };
-}
-
-/** Monday-to-Friday days between two 'YYYY-MM-DD' dates, inclusive. */
-function workingDays(start, end) {
-  const from = new Date(`${start}T00:00:00Z`);
-  const to = new Date(`${end}T00:00:00Z`);
-  let count = 0;
-  for (let d = from; d <= to; d = new Date(d.getTime() + 86400000)) {
-    const dow = d.getUTCDay();
-    if (dow !== 0 && dow !== 6) count += 1;
-  }
-  return count;
 }
 
 module.exports = { initialStage, decide, workingDays, PENDING };

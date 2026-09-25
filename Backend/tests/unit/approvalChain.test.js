@@ -51,6 +51,13 @@ test('finished stages cannot be acted on, and plain employees never can', () => 
   assert.deepEqual(decide({ ...base, stage: 'CHO_TRUONG_PHONG_DUYET', actorRole: 'EMPLOYEE' }), { ok: false, reason: 'WRONG_ROLE' });
 });
 
+test('an actor without an employee record can never approve', () => {
+  for (const actorRole of ['CEO', 'HR_DIRECTOR', 'LINE_MANAGER']) {
+    assert.equal(decide({ ...base, stage: 'CHO_HR_PHE_CHUAN', actorRole, actorId: null }).ok, false, actorRole);
+    assert.equal(decide({ ...base, stage: 'CHO_HR_PHE_CHUAN', actorRole, actorId: undefined }).ok, false, actorRole);
+  }
+});
+
 test('workingDays counts Monday to Friday inclusive', () => {
   assert.equal(workingDays('2027-03-01', '2027-03-05'), 5);
   assert.equal(workingDays('2027-03-01', '2027-03-08'), 6);

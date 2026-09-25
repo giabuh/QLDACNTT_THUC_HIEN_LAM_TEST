@@ -89,3 +89,17 @@ test('path parameters used in a path are declared on each operation', () => {
   }
   assert.deepEqual(bad, []);
 });
+
+test('every response and operation description is a string', () => {
+  const bad = [];
+  for (const [p, item] of Object.entries(spec.paths)) {
+    for (const [method, o] of Object.entries(item)) {
+      if (!['get', 'post', 'put', 'patch', 'delete'].includes(method)) continue;
+      if (o.description !== undefined && typeof o.description !== 'string') bad.push(`${method} ${p} description`);
+      for (const [code, r] of Object.entries(o.responses || {})) {
+        if (!r.$ref && typeof r.description !== 'string') bad.push(`${method} ${p} ${code}`);
+      }
+    }
+  }
+  assert.deepEqual(bad, []);
+});

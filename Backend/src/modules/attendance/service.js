@@ -21,7 +21,10 @@ async function insertCheckIn(executor, employeeId, method, gps = {}) {
   const { rows } = await executor.query(
     `INSERT INTO attendance_logs (employee_id, work_date, check_in_time, check_in_method, gps_lat, gps_lng)
      VALUES ($1, CURRENT_DATE, NOW(), $2, $3, $4)
-     ON CONFLICT (employee_id, work_date) DO NOTHING
+     ON CONFLICT (employee_id, work_date) DO UPDATE SET
+       check_in_time = NOW(), check_in_method = EXCLUDED.check_in_method, gps_lat = EXCLUDED.gps_lat, gps_lng = EXCLUDED.gps_lng,
+       status = CASE WHEN attendance_logs.status = 'CONG_TAC' THEN 'CONG_TAC'::attendance_status_enum ELSE 'DUNG_GIO'::attendance_status_enum END
+     WHERE attendance_logs.check_in_time IS NULL   -- a day HR pre-marked without times can still be punched
      RETURNING *`,
     [employeeId, method, gps.gpsLat ?? null, gps.gpsLng ?? null]
   );

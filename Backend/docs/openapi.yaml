@@ -586,7 +586,7 @@ paths:
               properties:
                 code: { type: string, description: 2-15 letters or digits, stored upper-case }
                 name: { type: string }
-                description: { type: string, nullable: true }
+                description: "{ type: string, nullable: true }"
                 budgetYearly: { type: number, minimum: 0 }
                 managerId: { type: string, nullable: true }
       responses:
@@ -620,7 +620,7 @@ paths:
               type: object
               properties:
                 name: { type: string }
-                description: { type: string, nullable: true }
+                description: "{ type: string, nullable: true }"
                 budgetYearly: { type: number, minimum: 0 }
                 managerId: { type: string, nullable: true }
                 isActive: { type: boolean }
@@ -675,7 +675,7 @@ paths:
                 code: { type: string }
                 name: { type: string }
                 level: { type: integer, minimum: 0, maximum: 10 }
-                description: { type: string, nullable: true }
+                description: "{ type: string, nullable: true }"
       responses:
         '201':
           description: Created
@@ -706,7 +706,7 @@ paths:
               properties:
                 name: { type: string }
                 level: { type: integer, minimum: 0, maximum: 10 }
-                description: { type: string, nullable: true }
+                description: "{ type: string, nullable: true }"
                 isActive: { type: boolean }
       responses:
         '200':
@@ -798,7 +798,7 @@ paths:
         Short-lived (60 s) and single-use. Render it as a QR code; a kiosk scans it and posts it to /attendance/kiosk/punch. It is signed with a key derived from the JWT secret and cannot be used as an access token.
       responses:
         '200':
-          description: { qrToken, expiresIn, employeeId }
+          description: "{ qrToken, expiresIn, employeeId }"
         '403': { $ref: '#/components/responses/Error' }
   /attendance/kiosk/punch:
     post:
@@ -860,7 +860,7 @@ paths:
         - { name: department, in: query, schema: { type: string } }
       responses:
         '200':
-          description: { month, days, rows }
+          description: "{ month, days, rows }"
         '400': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
   /attendance/exceptions:
@@ -873,7 +873,7 @@ paths:
         - { name: date, in: query, schema: { type: string, format: date } }
       responses:
         '200':
-          description: { date, late, absent }
+          description: "{ date, late, absent }"
         '400': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
   /attendance/live:
@@ -1155,7 +1155,7 @@ paths:
                 claimDate: { type: string, format: date, description: Not in the future }
                 amount: { type: number, exclusiveMinimum: true, minimum: 0 }
                 hospital: { type: string, nullable: true }
-                description: { type: string }
+                description: "{ type: string }"
                 attachmentUrl: { type: string, nullable: true }
                 leaveRequestId: { type: string, nullable: true, description: Must be the caller's own approved sick leave }
       responses:
@@ -1327,12 +1327,12 @@ paths:
       tags: [payroll]
       summary: Bank transfer batch of a locked period
       description: >
-        `totalAmount` equals the period total_net; employees without bank details are listed in `missingBank`.
+        `totalAmount` is the sum of the `items` lines; `periodTotalNet` is the period total, which is higher while employees without bank details are still listed in `missingBank`.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, example: '1' } }
       responses:
         '200':
-          description: { period, status, count, totalAmount, items, missingBank }
+          description: "{ period, status, count, totalAmount, periodTotalNet, items, missingBank }"
         '400': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -1389,7 +1389,7 @@ paths:
                 period: { type: string, example: 2026-09 }
       responses:
         '200':
-          description: { period, headcount, totalNet, totalBhxh, totalTax, totalOtHours }
+          description: "{ period, headcount, totalNet, totalBhxh, totalTax, totalOtHours }"
         '400': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }

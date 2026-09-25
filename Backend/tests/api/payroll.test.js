@@ -67,6 +67,20 @@ test('calculate: probation staff are paid, terminated staff and late joiners are
   assert.equal(await payslipOf('2027-01', late.id), undefined);
 });
 
+test('calculate: joiners and leavers without attendance are prorated by working days, not paid a full month', async () => {
+  const joiner = await worker({ days: 0 });
+  await db.query("UPDATE employees SET joined_date = '2027-01-28' WHERE id = $1", [joiner.id]); // Thu, Fri = 2 working days
+  const leaver = await worker({ status: 'DA_NGHI_VIEC', days: 0 });
+  await db.query("UPDATE employees SET termination_date = '2027-01-05' WHERE id = $1", [leaver.id]); // Fri 1, Mon 4, Tue 5 = 3 days
+  const stayer = await worker({ days: 0 });
+  await calc('2027-01');
+  assert.equal(Number((await payslipOf('2027-01', joiner.id)).actual_work_days), 2);
+  assert.equal(Number((await payslipOf('2027-01', leaver.id)).actual_work_days), 3);
+  assert.equal(Number((await payslipOf('2027-01', stayer.id)).actual_work_days), 22);
+  const j = await payslipOf('2027-01', joiner.id);
+  assert.equal(Number(j.gross_income) - Number(j.allowances), 2000000);
+});
+
 test('calculate: recalculating a draft replaces the payslips without duplicating them', async () => {
   const emp = await worker({ days: 10 });
   await calc('2027-01');
@@ -158,7 +172,7 @@ test('transfer: needs a locked period and bank details, then marks everything pa
   assert.equal((await call('CEO', 'post', '/api/payroll/periods/999999999/transfer', {})).status, 404);
 });
 
-test('bank-transfer export: only for locked periods, and the amounts add up to the payroll total', async () => {
+test('bank-transfer export: only for locked periods, and the batch total is the sum of its lines', async () => {
   await worker({ days: 22, month: '2027-08' });
   await calc('2027-08');
   const period = await periodRow('2027-08');
@@ -169,7 +183,10 @@ test('bank-transfer export: only for locked periods, and the amounts add up to t
   const res = await call('HR_DIRECTOR', 'get', url);
   assert.equal(res.status, 200);
   assert.equal(res.body.data.count, res.body.data.items.length);
-  assert.equal(res.body.data.totalAmount, Number((await periodRow('2027-08')).total_net));
+  const lineSum = res.body.data.items.reduce((s, i) => s + i.amount, 0);
+  assert.equal(res.body.data.totalAmount, lineSum); // the batch total is the sum of its lines
+  assert.equal(res.body.data.periodTotalNet, Number((await periodRow('2027-08')).total_net));
+  assert.ok(res.body.data.totalAmount < res.body.data.periodTotalNet); // some employees still lack bank details
   assert.ok(res.body.data.items.every((i) => i.memo.includes('2027-08') && Number(i.amount) > 0));
   assert.ok(res.body.data.missingBank.length >= 1);
   assert.equal((await call('EMPLOYEE', 'get', url)).status, 403);

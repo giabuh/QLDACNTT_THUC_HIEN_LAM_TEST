@@ -4,10 +4,22 @@ const { parsePagination, paginationMeta } = require('../../utils/pagination');
 const { writeAudit } = require('../../utils/audit');
 const { scopeCondition } = require('../../utils/scope');
 const { STANDARD_WORK_DAYS, computePayslip } = require('./tax');
+const { workingDays, lastDayOfMonth } = require('../../utils/dates');
 
 const DEFAULT_ALLOWANCES = 1_500_000; // phụ cấp ăn trưa + xăng xe
 const OT_MONTHLY_LIMIT = 40;
 const LOCKED = ['DA_CHOT', 'DA_CHUYEN_KHOAN'];
+/** Days to pay when a month has no attendance at all: the standard month, or the weekdays of a partial month. */
+function fallbackWorkDays(period, joinedDate, terminationDate) {
+  const first = `${period}-01`;
+  const last = lastDayOfMonth(period);
+  const from = joinedDate > first ? joinedDate : first;
+  const to = terminationDate && terminationDate < last ? terminationDate : last;
+  if (to < from) return 0;
+  if (from === first && to === last) return STANDARD_WORK_DAYS;
+  return Math.min(workingDays(from, to), STANDARD_WORK_DAYS);
+}
+
 const SEVERITY_ORDER = { Cao: 0, 'Trung bình': 1, Thấp: 2 };
 
 async function findPeriod(executor, id, { lock = false } = {}) {
@@ -34,7 +46,7 @@ async function calculate(actor, period, req) {
 
     const start = `${period}-01`;
     const { rows: employees } = await client.query(
-      `SELECT id, base_salary, bank_account, bank_name FROM employees
+      `SELECT id, base_salary, bank_account, bank_name, joined_date, termination_date FROM employees
         WHERE joined_date < ($1::date + INTERVAL '1 month')
           AND (status IN ('DANG_LAM_VIEC', 'THU_VIEC') OR (status = 'DA_NGHI_VIEC' AND termination_date >= $1::date))
         ORDER BY id`,
@@ -55,8 +67,9 @@ async function calculate(actor, period, req) {
       const att = byEmployee.get(emp.id);
       const logged = att ? Number(att.work_days) : 0;
       const otHours = att ? Number(att.ot) : 0;
-      // No attendance at all means the month has not been recorded yet: pay the standard days (demo/back-office data).
-      const p = computePayslip({ base, workDays: logged > 0 ? logged : STANDARD_WORK_DAYS, otHours, allowances: DEFAULT_ALLOWANCES });
+      // No attendance at all means the month has not been recorded yet: pay the standard days, prorated for joiners/leavers.
+      const workDays = logged > 0 ? logged : fallbackWorkDays(period, emp.joined_date, emp.termination_date);
+      const p = computePayslip({ base, workDays, otHours, allowances: DEFAULT_ALLOWANCES });
 
       await client.query(
         `INSERT INTO payslips (period_id, employee_id, base_salary, actual_work_days, standard_work_days, ot_hours, ot_pay,
@@ -185,7 +198,8 @@ async function bankTransfer(id) {
     period: period.period,
     status: period.status,
     count: payable.length,
-    totalAmount: Number(period.total_net),
+    totalAmount: payable.reduce((sum, r) => sum + Number(r.net_salary), 0), // sum of the lines in this batch
+    periodTotalNet: Number(period.total_net),
     items: payable.map((r) => ({
       employee_id: r.employee_id, full_name: r.full_name, bank_account: r.bank_account, bank_name: r.bank_name,
       amount: Number(r.net_salary), memo: `LUONG ${period.period} ${r.employee_id}`,
