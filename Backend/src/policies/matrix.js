@@ -20,6 +20,8 @@ const matrix = {
   'employee.update': { CEO: ALL, HR_DIRECTOR: ALL },
   'payroll.periods.read': { CEO: ALL, HR_DIRECTOR: ALL },
   'payroll.calculate': { CEO: ALL, HR_DIRECTOR: ALL },
+  'leave.create': { CEO: 'self', HR_DIRECTOR: 'self', LINE_MANAGER: 'self', EMPLOYEE: 'self' },
+  'leave.read': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT, EMPLOYEE: 'self' },
   'leave.approve': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
   'leave.reject': { CEO: ALL, HR_DIRECTOR: ALL, LINE_MANAGER: DEPT },
   'user.read': ADMINS,
