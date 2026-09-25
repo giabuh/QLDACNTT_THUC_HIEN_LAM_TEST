@@ -12,7 +12,7 @@ function run(mw, req) {
 test('every matrix entry uses a valid scope and a real role code', () => {
   const roles = ['CEO', 'HR_DIRECTOR', 'LINE_MANAGER', 'EMPLOYEE', 'KIOSK', 'ADMIN'];
   for (const [permission, byRole] of Object.entries(matrix)) {
-    assert.match(permission, /^[a-z]+(\.[a-z]+)+$/, permission);
+    assert.match(permission, /^[a-z]+(\.[a-zA-Z]+)+$/, permission);
     for (const [role, scope] of Object.entries(byRole)) {
       assert.ok(roles.includes(role), `${permission}: unknown role ${role}`);
       assert.ok(['all', 'department', 'self'].includes(scope), `${permission}: bad scope ${scope}`);

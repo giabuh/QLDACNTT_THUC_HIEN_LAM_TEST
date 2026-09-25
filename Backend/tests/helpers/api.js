@@ -38,6 +38,19 @@ async function call(role, method, url, body) {
   return body === undefined ? req : req.send(body);
 }
 
+/** Log in a throwaway user (see helpers/users.js) and return its tokens. */
+async function loginUser(u) {
+  const res = await request(app).post('/api/auth/login').send({ email: u.email, password: u.password });
+  if (res.status !== 200) throw new Error(`loginUser failed: ${res.status} ${JSON.stringify(res.body)}`);
+  return res.body;
+}
+
+/** Same as call() but authenticated with an explicit access token. */
+function callWith(token, method, url, body) {
+  const req = request(app)[method](url).set('Authorization', `Bearer ${token}`);
+  return body === undefined ? req : req.send(body);
+}
+
 const closeDb = () => db.pool.end();
 
-module.exports = { ACCOUNTS, tokenFor, claimsFor, call, closeDb };
+module.exports = { ACCOUNTS, tokenFor, claimsFor, call, callWith, loginUser, closeDb };
